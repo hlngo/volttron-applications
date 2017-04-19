@@ -108,9 +108,15 @@ class TargetAgent(Agent):
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
+        # publish target info
         #self.core.periodic(self.schedule_run_in_sec, self.publish_target_info)
         self.publish_target_info()
-
+        # subscribe to ILC start event
+        ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
+        _log.debug('Subscribing to ' + ilc_start_topic)
+        self.vip.pubsub.subscribe(peer='pubsub',
+                                  prefix=ilc_start_topic,
+                                  callback=self.publish_target_info)
 
     def get_event_info(self):
         """
