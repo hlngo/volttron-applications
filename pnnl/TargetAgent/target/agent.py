@@ -108,7 +108,9 @@ class TargetAgent(Agent):
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
-        self.core.periodic(self.schedule_run_in_sec, self.publish_target_info)
+        #self.core.periodic(self.schedule_run_in_sec, self.publish_target_info)
+        self.publish_target_info()
+
 
     def get_event_info(self):
         """
@@ -116,23 +118,25 @@ class TargetAgent(Agent):
         Returns:
             A dictionary that has start & end time for event day
         """
+        event_info = {}
         tz = pytz.timezone(self.tz)
-        start_time = datetime.datetime(2016, 5, 1, 13, 0, 0, tzinfo=tz)
-        end_time = datetime.datetime(2016, 5, 1, 17, 0, 0, tzinfo=tz)
-        return {
-            'start': format_timestamp(start_time),
-            'end': format_timestamp(end_time)
-        }
+        event_info['start'] = datetime.datetime(2017, 4, 14, 13, 0, 0, tzinfo=tz)
+        event_info['end'] = datetime.datetime(2017, 4, 30, 17, 0, 0, tzinfo=tz)
+        return event_info
 
-    def get_baseline_target(self):
+    def get_baseline_target(self, dt1, dt2):
         """
         Get baseline value from PGNE agent
         Returns:
             Average value of the next 2 baseline prediction
         """
+        # prediction for dt1
         prediction1 = 90
+        # prediction for dt2
         prediction2 = 95
+        # avg
         baseline_target = (prediction1+prediction2)/2.0
+
         return baseline_target
 
     @RPC.export('get_target_info')
@@ -142,41 +146,51 @@ class TargetAgent(Agent):
         Returns:
             A dictionary of start, end datetime and baseline target
         """
-        target_info = self.get_event_info()
-        baseline_target = self.get_baseline_target()
-        target_info['target'] = baseline_target
+        target_info = {}
+        event_info = self.get_event_info()
+        if len(event_info.keys()) > 0:
+            start = event_info['start']
+            end = event_info['end']
+            cur_time = datetime.datetime.now(pytz.timezone(self.tz))
+            if start <= cur_time < end:
+                one_hour = datetime.timedelta(hours=1)
+                next_hour = \
+                    cur_time.replace(minute=0, second=0, microsecond=0) + one_hour
+                next_hour_end = next_hour.replace(minute=59, second=59)
+                baseline_target = \
+                    self.get_baseline_target(next_hour, next_hour+one_hour)
+                target_info['id'] = format_timestamp(next_hour)
+                target_info['start'] = format_timestamp(next_hour)
+                target_info['end'] = format_timestamp(next_hour_end)
+                target_info['target'] = baseline_target
+
         return target_info
 
     def publish_target_info(self):
         target_info = self.get_target_info()
-        headers = {'Date': format_timestamp(get_aware_utc_now())}
-        tz = self.tz
-        time_meta = {'type': 'datetime', 'tz': tz, 'units': 'ISO-8601'}
-        target_meta = {'type': 'float', 'tz': tz, 'units': 'kW'}
-        #start
-        start_topic = 'target/start'
-        start_msg = [{"value": target_info['start']}, time_meta]
-        #end
-        end_topic = 'target/end'
-        end_msg = [{"value": target_info['end']}, time_meta]
-        #target
-        target_topic = 'target/target'
-        target_msg = [{"value": target_info['target']}, target_meta]
-        self.vip.pubsub.publish(
-            'pubsub', start_topic, headers, start_msg).get(timeout=10)
-        self.vip.pubsub.publish(
-            'pubsub', end_topic, headers, end_msg).get(timeout=10)
-        self.vip.pubsub.publish(
-            'pubsub', target_topic, headers, target_msg).get(timeout=10)
-        _log.debug("{topic}: {value}".format(
-            topic=start_topic,
-            value=start_msg))
-        _log.debug("{topic}: {value}".format(
-            topic=end_topic,
-            value=end_msg))
-        _log.debug("{topic}: {value}".format(
-            topic=target_topic,
-            value=target_msg))
+        if len(target_info.keys()) > 0:
+            headers = {'Date': format_timestamp(get_aware_utc_now())}
+            tz = self.tz
+            target_meta = {'type': 'float', 'tz': tz, 'units': 'kW'}
+            target_topic = '/'.join([self.site, self.building, 'target'])
+            target_msg = [{
+                "id": target_info['id'],
+                "start": target_info['start'],
+                "end": target_info['end'],
+                "target": target_info['target']
+            }, target_meta]
+            self.vip.pubsub.publish(
+                'pubsub', target_topic, headers, target_msg).get(timeout=10)
+            _log.debug("{topic}: {value}".format(
+                topic=target_topic,
+                value=target_msg))
+            # Schedule the next run at minute 30 of next hour
+            cur_time = datetime.datetime.now(pytz.timezone(self.tz))
+            one_hour = datetime.timedelta(hours=1)
+            next_update_time = \
+                cur_time.replace(minute=30, second=0, microsecond=0) + one_hour
+            self._still_connected_event = self.core.schedule(
+                next_update_time, self.publish_target_info)
 
 def main(argv=sys.argv):
     '''Main method called by the eggsecutable.'''
