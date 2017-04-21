@@ -58,16 +58,18 @@
 import os
 import sys
 import logging
-import datetime
+from datetime import datetime, timedelta
 from dateutil import parser
+import pandas as pd
+import statsmodels.formula.api as sm
+from pandas.tseries.offsets import CustomBusinessDay, BDay
+from pandas.tseries.holiday import USFederalHolidayCalendar
+import pytz
 
 from volttron.platform.vip.agent import Agent, Core, PubSub, RPC, compat
 from volttron.platform.agent import utils
 from volttron.platform.agent.utils import (get_aware_utc_now,
                                            format_timestamp)
-
-import pandas as pd
-import statsmodels.formula.api as sm
 
 utils.setup_logging()
 _log = logging.getLogger(__name__)
@@ -90,11 +92,15 @@ class PGnEAgent(Agent):
         self.window_size_in_day = int(self.config.get('window_size_in_day'))
         self.min_required_window_size_in_percent = float(self.config.get('min_required_window_size_in_percent'))
         self.interval_in_min = int(self.config.get('interval_in_min'))
-        self.no_of_recs_needed = 10 # self.window_size_in_day * 24 * (60 / self.interval_in_min)
-        self.min_no_of_records_needed_after_aggr = int(self.min_required_window_size_in_percent/100 *
-                                            self.no_of_recs_needed/self.aggregate_in_min)
+        self.no_of_recs_needed = self.window_size_in_day * 24 * (60 / self.interval_in_min)
+        self.min_no_of_records_needed_after_aggr = \
+            int(self.min_required_window_size_in_percent/100 *
+                self.no_of_recs_needed /
+                (self.aggregate_in_min/self.interval_in_min))
         self.schedule_run_in_sec = int(self.config.get('schedule_run_in_hr')) * 3600
-
+        self.tz = self.config.get('tz')
+        #Debug
+        self.debug_folder = self.config.get('debug_folder')
 
         # Testing
         #self.no_of_recs_needed = 200
@@ -103,15 +109,53 @@ class PGnEAgent(Agent):
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
-        self.core.periodic(self.schedule_run_in_sec, self.calculate_latest_coeffs)
+        #self.core.periodic(self.schedule_run_in_sec, self.calculate_latest_coeffs)
 
-    def calculate_latest_coeffs(self):
+        # cur_time = local_tz.localize(datetime.now())
+        # FOR TESTING
+        # local_tz = pytz.timezone(self.tz)
+        # cur_time = local_tz.localize(datetime(2016, 8, 17, 8, 0, 0))
+        # self.calculate_latest_baseline(cur_time)
+        pass
+
+    @RPC.export('get_prediction')
+    def get_prediction(self, in_time, in_tz):
+        cur_time = parser.parse(in_time)
+        if cur_time.tzinfo is None:
+            tz = pytz.timezone(in_tz)
+            cur_time = tz.localize(cur_time)
+
+        return self.calculate_latest_baseline(cur_time)
+
+    def calculate_latest_baseline(self, cur_time):
+        baseline_values = []
         unit_topic_tmpl = "{campus}/{building}/{unit}/{point}"
-        unit_points = [self.power_name]
+        unit_points = [self.out_temp_name, self.power_name]
         df = None
+
+        # Calculate start time as midnight of 10 business day before the cur date
+        # Support USFederalHoliday only, add custom holidays later (state, regional, etc.)
+        #local_tz = pytz.timezone(self.tz)
+        #cur_time = local_tz.localize(datetime.now())
+        #cur_time = local_tz.localize(datetime(2016, 8, 18, 8, 0, 0))
+        bday_us = CustomBusinessDay(calendar=USFederalHolidayCalendar())
+        start_time = cur_time - 10*bday_us
+        start_time = start_time.replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        start_date_utc = start_time.astimezone(pytz.utc)
+        cur_time_utc = cur_time.astimezone(pytz.utc)
+        one_hour = timedelta(hours=1)
+        next_time_utc1 = \
+            cur_time_utc.replace(minute=0, second=0, microsecond=0) + one_hour
+        next_time_utc2 = next_time_utc1 + one_hour
 
         #Get data
         unit = self.temp_unit
+        df_extension = {self.ts_name: [
+            next_time_utc1.strftime('%Y-%m-%d %H:%M:%S'),
+            next_time_utc2.strftime('%Y-%m-%d %H:%M:%S')
+        ]}
+        df_extension[self.ts_name] = pd.to_datetime(df_extension[self.ts_name])
         for point in unit_points:
             if point == self.power_name:
                 unit = self.power_unit
@@ -122,79 +166,112 @@ class PGnEAgent(Agent):
             result = self.vip.rpc.call('platform.historian',
                                        'query',
                                        topic=unit_topic,
-                                       count=self.no_of_recs_needed,
+                                       start=start_date_utc.isoformat(' '),
+                                       count=1000000,
                                        order="LAST_TO_FIRST").get(timeout=10000)
-            df2 = pd.DataFrame(result['values'], columns=[self.ts_name, point])
-            df2[self.ts_name] = pd.to_datetime(df2[self.ts_name])
-            df2 = df2.groupby([pd.TimeGrouper(key=self.ts_name, freq=self.aggregate_freq)]).mean()
-            # df2[self.ts_name] = df2[self.ts_name].apply(lambda dt: dt.replace(second=0, microsecond=0))
-            df = df2 if df is None else pd.merge(df, df2, how='outer', left_index=True, right_index=True)
+            if len(result)>0:
+                df2 = pd.DataFrame(result['values'], columns=[self.ts_name, point])
+                df2[self.ts_name] = pd.to_datetime(df2[self.ts_name])
+                df2 = df2[df2[self.ts_name]<cur_time_utc]
+                df2 = df2.groupby([pd.TimeGrouper(key=self.ts_name, freq=self.aggregate_freq)]).mean()
+                #df2.resample('60min').mean()
+                # df2[self.ts_name] = df2[self.ts_name].apply(lambda dt: dt.replace(second=0, microsecond=0))
+                #df = df2 if df is None else pd.merge(df, df2, how='outer', left_index=True, right_index=True)
+                df = df2 if df is None else pd.merge(df, df2, how='outer', left_index=True, right_index=True)
+            if not point in df_extension:
+                df_extension[point] = [-1.0]
+            df_extension[point].append(-1.0)
 
         #Calculate coefficients
-        result_df = self.calculate_coeffs(df)
+        result_df = None
+        if df is not None:
+            #Expand dataframe for 2hour prediction
+            df_extension = pd.DataFrame(df_extension)
+            df_extension = df_extension.set_index([self.ts_name])
+            result_df = self.calculate_baseline_logic(df)
 
+        if result_df is not None:
+            #self.publish_baseline(result_df, cur_time_utc)
+            last_idx = len(result_df.index) - 1
+            sec_last_idx = last_idx - 1
+            # use adj avg for 10 day
+            value_hr2 = result_df['pow_adj_avg'][last_idx]
+            value_hr1 = result_df['pow_adj_avg'][sec_last_idx]
+            meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
+            baseline_values = [{
+                "value_hr1": value_hr1,
+                "value_hr2": value_hr2
+            }, {
+                "value_hr1": meta,
+                "value_hr2": meta
+            }]
 
-        # Publish coeffs to store
-        #if coeffs is not None:
-        #    self.save_coeffs(coeffs, subdevice)
+        # Schedule the next run at minute 30 of next hour
+        # one_hour = timedelta(hours=1)
+        # next_update_time = \
+        #     cur_time.replace(minute=20, second=0, microsecond=0) + one_hour
+        # self._still_connected_event = self.core.schedule(
+        #     next_update_time, self.calculate_latest_baseline)
+        _log.debug("Baseline values: ")
+        _log.debug(baseline_values)
+        return baseline_values
 
-    def convert_units_to_SI(self, df, point, unit):
-        if unit == 'degreesFahrenheit':
-            df[point] = (df[point]-32) * 5/9
-        # Air state assumption: http://www.remak.eu/en/mass-air-flow-rate-unit-converter
-        # 1cfm ~ 0.00055kg/s
-        if unit == 'cubicFeetPerMinute':
-            df[point] = df[point] * 0.00055
+    def calculate_baseline_logic(self, dP):
+        # Not used anymore, it's here for information purpose
+        dP['DayOfWeek'] = dP.index.map(lambda v: v.weekday())
 
-    def calculate_coeffs(self, dP):
-        dP['time'] = dP['posttime']
-        dP = dP.set_index(['posttime'])
-
-        dP.index = pd.to_datetime(dP.index)
-        dP['time'] = pd.to_datetime(dP['time'])
-
-        #### Delete the weekend
-        dP.columns = ["Tout", "wbe", "Weekday", "time"]
+        # Delete the weekend
+        dP.columns = [
+            "OutdoorAirTemperature",
+            "WholeBuildingPower",
+            "DayOfWeek"]
         dP['year'] = dP.index.year
         dP['month'] = dP.index.month
         dP['hour'] = dP.index.hour
         dP['day'] = dP.index.day
-        dP = dP[dP.Weekday != 'Sun']
-        dP = dP[dP.Weekday != 'Sat']
+        dP = dP[dP.DayOfWeek<5] #Not sat or sun
 
-        ####  Hourly average value
+        # if (len(dP.index) < self.min_no_of_records_needed_after_aggr):
+        #     _log.exception('Not enough data to process')
+        #     return None
+
+        # Hourly average value
         df = dP.resample('60min').mean()
-        dP2 = dP.resample('60min').mean()
 
-        dP = dP[dP.Tout < 150]
-        dP = dP[dP.Tout > 20]
-        dP = dP.dropna()
+        #dP = dP[dP.OutdoorAirTemperature < 150]
+        #dP = dP[dP.OutdoorAirTemperature > 20]
+        #dP = dP.dropna()
+        self.save_4_debug(df, 'data1.csv')
 
-        df = df.pivot_table(index=["year", "month", "day"], columns=["hour"], values=["wbe", "Tout"])
+        df = df.pivot_table(index=["year", "month", "day"], columns=["hour"], values=["OutdoorAirTemperature","WholeBuildingPower"])
 
-        # ### Average using high five outdoor temperature data based on 10 day moving windows
+        df_length = len(df.index)
+        if (df_length < 11): #10prev business day + current day
+            _log.exception('Not enough data to process')
+            return None
 
-        leng = len(df.index)
-        for i in range(0, leng):
+        # Average using high five outdoor temperature data based on 10 day moving windows
+        for i in range(0, df_length):
             for j in range(0, 24):
-                df['power', j] = df.ix[i:i + 10, :].sort([('Tout', j)], ascending=False).head(5).ix[:,
-                                 j + 24:j + 25].mean()
-
-        for i in range(0, leng):
+                df['hot5_pow_avg', j] = None
+        for i in range(10, df_length):
             for j in range(0, 24):
-                df['power', j][i:i + 1] = df.ix[i:i + 10, :].sort([('Tout', j)], ascending=False).head(5).ix[:,
-                                          j + 24:j + 25].mean()
+                df['hot5_pow_avg', j][i] = \
+                    df.ix[i-10:i-1, :].sort([('OutdoorAirTemperature', j)], ascending=False).head(5).ix[:, (j+24):(j+25)].mean().ix[0]
+        self.save_4_debug(df, 'data2.csv')
 
-        # ### Average based on 10 day moving windows
+        # Average based on 10 day moving windows
+        for i in range(0, 24):
+            df['Tout_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
 
         for i in range(0, 24):
-            df['Tout_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean()
+            df['pow_avg', i] = df.ix[:, i + 24:i + 25].rolling(window=10, min_periods=10).mean().shift()
 
-        for i in range(0, 24):
-            df['Pow_avg', i] = df.ix[:, i + 24:i + 25].rolling(window=10, min_periods=10).mean()
+        self.save_4_debug(df, 'data3.csv')
 
         df = df.stack(level=['hour'])
-        df.power = df.power.shift(216)
+
+        #df.hot5_pow_avg = df.hot5_pow_avg.shift(216)
         df = df.dropna()
         dq = df.reset_index()
         dq['Data'] = pd.to_datetime(
@@ -202,93 +279,89 @@ class PGnEAgent(Agent):
                 str) + ' ' + dq.hour.astype(int).apply(str) + ":00", format='%Y/%m/%d %H:%M')
         dq = dq.set_index(['Data'])
         dq = dq.drop(['year', 'month', 'day', 'hour'], axis=1)
-        dk = dq
-
-        ### Adjusted average using high five outdoor temperature data based on 10 day moving windows
-        lengnth = len(dq.index)
-        lengnth = lengnth - 4
+        self.save_4_debug(dq, 'data4.csv')
+        # Adjusted average based on 10 day moving windows
+        dq_length = len(dq.index)
+        dq_length = dq_length - 4
         dq["Adj"] = 1.0
-        for i in range(0, lengnth):
-            dq['Adj'][i + 4] = (dq['wbe'][i:i + 4].mean()) / (dq['Pow_avg'][i:i + 4].mean())
+        for i in range(0, dq_length):
+            dq['Adj'][i + 4] = (dq['WholeBuildingPower'][i:i+3].mean()) / (dq['pow_avg'][i:i + 3].mean())
 
-        dq['Pow_adj'] = dq['Pow_avg'] * dq['Adj']
+        dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
+        self.save_4_debug(dq, 'data5.csv')
 
-        #### Adjusted average based on 10 day moving windows
-        lengnth = len(dq.index)
-        lengnth = lengnth - 4
+        # Adjusted average using high five outdoor temperature data based on 10 day moving windows
+        dq_length = len(dq.index) - 4
         dq["Adj2"] = 1.0
-        for i in range(0, lengnth):
-            dq['Adj2'][i + 4] = (dq['wbe'][i:i + 4].mean()) / (dq['power'][i:i + 4].mean())
+        for i in range(0, dq_length):
+            dq['Adj2'][i + 4] = (dq['WholeBuildingPower'][i:i+3].mean()) / (dq['hot5_pow_avg'][i:i + 3].mean())
+        self.save_4_debug(dq, 'data6.csv')
 
         dq['Adj2'] = dq.Adj2.shift(2)
-        dq['power_adj'] = dq['power'] * dq['Adj2']
+        dq['hot5_pow_adj_avg'] = dq['hot5_pow_avg'] * dq['Adj2']
+        self.save_4_debug(dq, 'result.csv')
 
         return dq
 
-    def save_coeffs(self, coeffs, subdevice):
-        topic_tmpl = "analysis/TCM/{campus}/{building}/{unit}/{subdevice}/"
-        topic = topic_tmpl.format(campus=self.site,
-                                  building=self.building,
-                                  unit=self.unit,
-                                  subdevice=subdevice)
-        T_coeffs = coeffs["T_fit"]
-        Q_coeffs = coeffs["Q_fit"]
-        headers = {'Date': format_timestamp(get_aware_utc_now())}
-        for idx in xrange(0,5):
-            T_topic = topic + "T_c" + str(idx)
-            Q_topic = topic + "Q_c" + str(idx)
-            self.vip.pubsub.publish(
-                'pubsub', T_topic, headers, T_coeffs.params[idx])
-            self.vip.pubsub.publish(
-                'pubsub', Q_topic, headers, Q_coeffs.params[idx])
+    def publish_baseline(self, df, cur_time):
+        topic_tmpl = "analysis/PGnE/{campus}/{building}/"
+        topic_prefix = topic_tmpl.format(campus=self.site,
+                                         building=self.building)
+        headers = {'Date': format_timestamp(cur_time)}
+        last_idx = len(df.index)-1
+        sec_last_idx = last_idx - 1
+        #avg 10 day
+        topic1 = topic_prefix + "avg10"
+        value1 = df['pow_avg'][last_idx]
+        #adj avg 10 day
+        topic2 = topic_prefix + "adj_avg10"
+        value_hr1 = df['pow_adj_avg'][sec_last_idx]
+        value_hr2 = df['pow_adj_avg'][last_idx]
+        #avg 5 hottest in 10 day
+        topic3 = topic_prefix + "hot5_avg10"
+        value3 = df['hot5_pow_avg'][last_idx]
+        #adj avg 5 hottest in 10 day
+        topic4 = topic_prefix + "hot5_adj_avg10"
+        value4 = df['hot5_pow_adj_avg'][last_idx]
 
-        _log.debug(T_coeffs.params)
-        _log.debug(Q_coeffs.params)
+        #publish to message bus: only 10 day adjustment
+        meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
+        msg = [{
+            "value_hr1": value_hr1,
+            "value_hr2": value_hr2
+        }, {
+            "value_hr1": meta,
+            "value_hr2": meta
+        }]
+        self.vip.pubsub.publish(
+            'pubsub', topic2, headers, msg).get(timeout=10)
+        _log.debug("{topic}: {value}".format(
+            topic=topic2, value=msg))
+        #publish to message bus
+        # topics = [topic1,topic2,topic3,topic4]
+        # values = [value1,value2,value3,value4]
+        # meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
+        # for i in xrange(0,4):
+        #     message = [{"value":values[i]}, meta]
+        #     self.vip.pubsub.publish(
+        #         'pubsub', topics[i], headers, message).get(timeout=10)
+        #     _log.debug("{topic}: {value}".format(
+        #         topic=topics[i],
+        #         value=values[i]))
 
+    def save_4_debug(self, df, name):
+        if self.debug_folder != None:
+            try:
+                df.to_csv(self.debug_folder + name)
+            except Exception as ex:
+                _log.debug(ex)
 
 def main(argv=sys.argv):
     '''Main method called by the eggsecutable.'''
     try:
-        utils.vip_main(PGnEAgent)
+        utils.vip_main(PGnEAgent, 'baseline_agent')
     except Exception as e:
         _log.exception('unhandled exception')
-
-
-def test_ols():
-    '''To compare result of pandas and R's linear regression'''
-    import os
-
-    test_csv = '../test_data/tcm_ZONE_VAV_150_data.csv'
-    df = pd.read_csv(test_csv)
-
-    config_path = os.environ.get('AGENT_CONFIG')
-    tcm = PGnEAgent(config_path)
-    coeffs = tcm.calculate_coeffs(df)
-    if coeffs is not None:
-        T_coeffs = coeffs["T_fit"]
-        Q_coeffs = coeffs["Q_fit"]
-        _log.debug(T_coeffs.params)
-        _log.debug(Q_coeffs.params)
-
-
-def test_api():
-    '''To test Volttron APIs'''
-    import os
-
-    topic_tmpl = "{campus}/{building}/{unit}/{subdevice}/{point}"
-    tcm = PGnEAgent(os.environ.get('AGENT_CONFIG'))
-
-    topic1 = topic_tmpl.format(campus='PNNL',
-                               building='SEB',
-                               unit='AHU1',
-                               subdevice='VAV123A',
-                               point='MaximumZoneAirFlow')
-    result = tcm.vip.rpc.call('platform.historian',
-                              'query',
-                              topic=topic1,
-                              count=20,
-                              order="LAST_TO_FIRST").get(timeout=100)
-    assert result is not None
 
 if __name__ == '__main__':
     # Entry point for script

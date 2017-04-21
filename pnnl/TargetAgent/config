@@ -17,5 +17,5 @@
     "CBP": 20,
 
     #optional
-    "debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/TargetAgent/"
+    #"debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/TargetAgent/"
 }
