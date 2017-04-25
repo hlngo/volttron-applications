@@ -71,6 +71,8 @@ from volttron.platform.agent import utils
 from volttron.platform.agent.utils import (get_aware_utc_now,
                                            format_timestamp)
 
+__version__ = '1.0.0'
+
 utils.setup_logging()
 _log = logging.getLogger(__name__)
 

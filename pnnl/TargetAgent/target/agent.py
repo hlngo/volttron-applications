@@ -67,8 +67,7 @@ from volttron.platform.agent import utils
 from volttron.platform.agent.utils import (get_aware_utc_now,
                                            format_timestamp)
 
-import pandas as pd
-import statsmodels.formula.api as sm
+__version__ = '1.0.0'
 
 utils.setup_logging()
 _log = logging.getLogger(__name__)
@@ -90,7 +89,7 @@ class TargetAgent(Agent):
         #cur_time = local_tz.localize(datetime.now())
         # for simulation
         local_tz = pytz.timezone(self.tz)
-        cur_time = local_tz.localize(datetime(2017, 8, 15, 12, 0, 0))
+        cur_time = local_tz.localize(datetime(2017, 8, 15, 13, 0, 0))
         self.publish_target_info(format_timestamp(cur_time), self.tz)
         # subscribe to ILC start event
         ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
