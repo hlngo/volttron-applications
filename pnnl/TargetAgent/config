@@ -1,21 +1,9 @@
 {
-	"agentid": "pgneagent",
 	"campus": "PNNL",
-	"building": "350",
-	"temp_unit": "AHU1",
-	"power_unit": "METERS",
-	"window_size_in_day": 20,
-    "min_required_window_size_in_percent": 50,
-	"interval_in_min": 1,
-    "schedule_run_in_hr": 1,
-    "aggregate_in_min": 60,
-
-	"out_temp_name": "OutdoorAirTemperature",
-    "power_name": "WholeBuildingPower",
-    "ts_name": "Date",
+	"building": "SIMULINK",
     "tz": "US/Pacific",
-    "CBP": 20,
+    "CBP": 20
 
-    #optional
+    #optional for debug purpose
     #"debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/TargetAgent/"
 }

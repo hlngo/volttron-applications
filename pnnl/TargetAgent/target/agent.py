@@ -80,41 +80,16 @@ class TargetAgent(Agent):
         self.config = utils.load_config(config_path)
         self.site = self.config.get('campus')
         self.building = self.config.get('building')
-        self.temp_unit = self.config.get('temp_unit')
-        self.power_unit = self.config.get('power_unit')
-        self.out_temp_name = self.config.get('out_temp_name')
-        self.power_name = self.config.get('power_name')
-        self.aggregate_in_min = self.config.get('aggregate_in_min')
-        self.aggregate_freq = str(self.aggregate_in_min) + 'Min'
-        self.ts_name = self.config.get('ts_name')
-
-        self.window_size_in_day = int(self.config.get('window_size_in_day'))
-        self.min_required_window_size_in_percent = float(self.config.get('min_required_window_size_in_percent'))
-        self.interval_in_min = int(self.config.get('interval_in_min'))
-        self.no_of_recs_needed = self.window_size_in_day * 24 * (60 / self.interval_in_min)
-        self.min_no_of_records_needed_after_aggr = \
-            int(self.min_required_window_size_in_percent/100 *
-                self.no_of_recs_needed /
-                (self.aggregate_in_min/self.interval_in_min))
-        self.schedule_run_in_sec = int(self.config.get('schedule_run_in_hr')) * 3600
         self.tz = self.config.get('tz')
-        #Debug
         self.debug_folder = self.config.get('debug_folder')
-
-        # Testing
-        #self.no_of_recs_needed = 200
-        #self.min_no_of_records_needed_after_aggr = self.no_of_recs_needed/self.aggregate_in_min
-
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
-        # publish target info
-        #self.core.periodic(self.schedule_run_in_sec, self.publish_target_info)
-        local_tz = pytz.timezone(self.tz)
         # for real time
         #cur_time = local_tz.localize(datetime.now())
         # for simulation
-        cur_time = local_tz.localize(datetime(2016, 8, 17, 13, 0, 0))
+        local_tz = pytz.timezone(self.tz)
+        cur_time = local_tz.localize(datetime(2017, 8, 15, 13, 0, 0))
         self.publish_target_info(format_timestamp(cur_time), self.tz)
         # subscribe to ILC start event
         ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
@@ -137,8 +112,8 @@ class TargetAgent(Agent):
         event_info = {}
         # for simulation
         local_tz = pytz.timezone(self.tz)
-        event_info['start'] = local_tz.localize(datetime(2016, 8, 17, 13, 0, 0))
-        event_info['end'] = local_tz.localize(datetime(2016, 8, 17, 17, 0, 0))
+        event_info['start'] = local_tz.localize(datetime(2017, 8, 15, 13, 0, 0))
+        event_info['end'] = local_tz.localize(datetime(2017, 8, 15, 17, 0, 0))
 
         return event_info
 
@@ -151,7 +126,7 @@ class TargetAgent(Agent):
         baseline_target = None
         message = self.vip.rpc.call(
             'baseline_agent', 'get_prediction',
-            format_timestamp(cur_time), self.tz).get()
+            format_timestamp(cur_time), self.tz).get(timeout=100)
         if len(message) > 0:
             values = message[0]
             prediction1 = float(values["value_hr1"])
@@ -202,7 +177,9 @@ class TargetAgent(Agent):
                         "end": time_meta,
                         "target": meta
                     }]
-
+                _log.debug(
+                    "At time {ts} target info is {ti}".format(ts=cur_time,
+                                                              ti=target_info))
         return target_info
 
     def publish_target_info(self, in_time, in_tz):
@@ -220,7 +197,7 @@ class TargetAgent(Agent):
             target_info = message[0]
             headers = {'Date': format_timestamp(get_aware_utc_now())}
             meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
-            time_meta = {'type':'datetime', 'tz': self.tz, 'units': 'datetime'}
+            time_meta = {'type': 'datetime', 'tz': self.tz, 'units': 'datetime'}
             target_topic = '/'.join(['analysis','target_agent',self.site, self.building, 'goal'])
             target_msg = [{
                 "id": target_info['id'],
@@ -249,7 +226,7 @@ class TargetAgent(Agent):
 def main(argv=sys.argv):
     '''Main method called by the eggsecutable.'''
     try:
-        utils.vip_main(TargetAgent, identity='target_agent')
+        utils.vip_main(TargetAgent)
     except Exception as e:
         _log.exception('unhandled exception')
 
