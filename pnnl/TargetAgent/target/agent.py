@@ -82,6 +82,7 @@ class TargetAgent(Agent):
         self.building = self.config.get('building')
         self.tz = self.config.get('tz')
         self.debug_folder = self.config.get('debug_folder')
+        self.cbp = float(self.config.get('CBP'))
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
@@ -89,7 +90,7 @@ class TargetAgent(Agent):
         #cur_time = local_tz.localize(datetime.now())
         # for simulation
         local_tz = pytz.timezone(self.tz)
-        cur_time = local_tz.localize(datetime(2017, 8, 15, 13, 0, 0))
+        cur_time = local_tz.localize(datetime(2017, 8, 15, 12, 0, 0))
         self.publish_target_info(format_timestamp(cur_time), self.tz)
         # subscribe to ILC start event
         ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
@@ -132,7 +133,7 @@ class TargetAgent(Agent):
             prediction1 = float(values["value_hr1"])
             prediction2 = float(values["value_hr2"])
             baseline_target = (prediction1+prediction2)/2.0
-
+            baseline_target -= self.cbp
         return baseline_target
 
     @RPC.export('get_target_info')
