@@ -1,11 +1,8 @@
 {
 	"campus": "PNNL",
-	"building": "SIMULINK",
-	"temp_unit": "RTU1",
+	"building": "350",
 	"power_unit": "METERS",
     "aggregate_in_min": 60,
-
-	"out_temp_name": "ThermostatZoneTemperature",
     "power_name": "WholeBuildingPower",
     "ts_name": "Date",
     "tz": "US/Pacific",

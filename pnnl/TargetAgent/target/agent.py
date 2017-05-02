@@ -85,12 +85,15 @@ class TargetAgent(Agent):
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
-        # for real time
-        #cur_time = local_tz.localize(datetime.now())
-        # for simulation
         local_tz = pytz.timezone(self.tz)
-        cur_time = local_tz.localize(datetime(2017, 8, 15, 13, 0, 0))
-        self.publish_target_info(format_timestamp(cur_time), self.tz)
+        # for real time
+        cur_time = local_tz.localize(datetime.now())
+
+        # for simulation: no need
+        #cur_time = local_tz.localize(datetime(2016, 8, 17, 12, 30, 0))
+
+        cur_time_utc = cur_time.astimezone(pytz.utc)
+        self.publish_target_info(format_timestamp(cur_time_utc))
         # subscribe to ILC start event
         ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
         _log.debug('Subscribing to ' + ilc_start_topic)
@@ -101,7 +104,8 @@ class TargetAgent(Agent):
     def on_ilc_start(self, peer, sender, bus, topic, headers, message):
         local_tz = pytz.timezone(self.tz)
         cur_time = local_tz.localize(datetime.now())
-        self.publish_target_info(format_timestamp(cur_time), self.tz)
+        cur_time_utc = cur_time.astimezone(pytz.utc)
+        self.publish_target_info(format_timestamp(cur_time_utc))
 
     def get_event_info(self):
         """
@@ -109,15 +113,19 @@ class TargetAgent(Agent):
         Returns:
             A dictionary that has start & end time for event day
         """
-        event_info = {}
-        # for simulation
+        # Get info from OpenADR, with timezone info
         local_tz = pytz.timezone(self.tz)
-        event_info['start'] = local_tz.localize(datetime(2017, 8, 15, 13, 0, 0))
-        event_info['end'] = local_tz.localize(datetime(2017, 8, 15, 17, 0, 0))
+        start_time = local_tz.localize(datetime(2017, 5, 2, 13, 0, 0))
+        end_time = local_tz.localize(datetime(2017, 5, 2, 17, 0, 0))
+
+        # for simulation
+        event_info = {}
+        event_info['start'] = start_time.astimezone(pytz.utc)
+        event_info['end'] = end_time.astimezone(pytz.utc)
 
         return event_info
 
-    def get_baseline_target(self, cur_time):
+    def get_baseline_target(self, cur_time_utc, start_utc, end_utc):
         """
         Get baseline value from PGNE agent
         Returns:
@@ -126,7 +134,10 @@ class TargetAgent(Agent):
         baseline_target = None
         message = self.vip.rpc.call(
             'baseline_agent', 'get_prediction',
-            format_timestamp(cur_time), self.tz).get(timeout=100)
+            format_timestamp(cur_time_utc),
+            format_timestamp(start_utc),
+            format_timestamp(end_utc),
+            'UTC').get(timeout=26)
         if len(message) > 0:
             values = message[0]
             prediction1 = float(values["value_hr1"])
@@ -156,16 +167,22 @@ class TargetAgent(Agent):
                 tz = pytz.timezone(in_tz)
                 cur_time = tz.localize(cur_time)
 
-            if start <= cur_time < end:
-                one_hour = timedelta(hours=1)
+            # Convert to UTC before doing any processing
+            start_utc = start.astimezone(pytz.utc)
+            end_utc = end.astimezone(pytz.utc)
+            cur_time_utc = cur_time.astimezone(pytz.utc)
+            one_hour = timedelta(hours=1)
+            start_utc_prev_hr = start_utc - one_hour
+            end_utc_prev_hr = end_utc - one_hour
+            if start_utc_prev_hr <= cur_time_utc < end_utc_prev_hr:
                 next_hour = \
-                    cur_time.replace(minute=0, second=0, microsecond=0) + one_hour
+                    cur_time_utc.replace(minute=0, second=0, microsecond=0) + one_hour
                 next_hour_end = next_hour.replace(minute=59, second=59)
                 baseline_target = \
-                    self.get_baseline_target(cur_time)
+                    self.get_baseline_target(cur_time_utc, start_utc, end_utc)
                 if baseline_target is not None:
-                    meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
-                    time_meta = {'type': 'datetime', 'tz': self.tz, 'units': 'datetime'}
+                    meta = {'type': 'float', 'tz': in_tz, 'units': 'kW'}
+                    time_meta = {'type': 'datetime', 'tz': in_tz, 'units': 'datetime'}
                     target_info = [{
                         "id": format_timestamp(next_hour),
                         "start": format_timestamp(next_hour),
@@ -178,21 +195,14 @@ class TargetAgent(Agent):
                         "target": meta
                     }]
                 _log.debug(
-                    "At time {ts} target info is {ti}".format(ts=cur_time,
-                                                              ti=target_info))
+                    "At time (UTC) {ts} TargetInfo is {ti}".format(ts=cur_time_utc,
+                                                                   ti=target_info))
         return target_info
 
-    def publish_target_info(self, in_time, in_tz):
-        cur_time = parser.parse(in_time)
-        if cur_time.tzinfo is None:
-            tz = pytz.timezone(in_tz)
-            cur_time = tz.localize(cur_time)
+    def publish_target_info(self, cur_time_utc):
+        cur_time_utc = parser.parse(cur_time_utc)
 
-        # local_tz = pytz.timezone(self.tz)
-        # if cur_time is None:
-        #     cur_time = local_tz.localize(datetime.now())
-
-        message = self.get_target_info(format_timestamp(cur_time), self.tz)
+        message = self.get_target_info(format_timestamp(cur_time_utc), 'UTC')
         if len(message) > 0:
             target_info = message[0]
             headers = {'Date': format_timestamp(get_aware_utc_now())}
@@ -218,10 +228,10 @@ class TargetAgent(Agent):
             # Schedule the next run at minute 30 of next hour
             one_hour = timedelta(hours=1)
             next_update_time = \
-                cur_time.replace(minute=30, second=0, microsecond=0) + one_hour
+                cur_time_utc.replace(minute=30, second=0, microsecond=0) + one_hour
             self._still_connected_event = self.core.schedule(
                 next_update_time, self.publish_target_info,
-                format_timestamp(next_update_time), self.tz)
+                format_timestamp(next_update_time))
 
 def main(argv=sys.argv):
     '''Main method called by the eggsecutable.'''

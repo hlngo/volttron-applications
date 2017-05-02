@@ -1,8 +1,8 @@
 {
 	"campus": "PNNL",
-	"building": "SIMULINK",
-    "tz": "US/Pacific",
-    "CBP": 20
+	"building": "350",
+    "tz": "UTC",
+    "CBP": 5
 
     #optional for debug purpose
     #"debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/TargetAgent/"
