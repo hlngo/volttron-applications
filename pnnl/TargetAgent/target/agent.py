@@ -93,13 +93,15 @@ class TargetAgent(Agent):
         #cur_time = local_tz.localize(datetime(2016, 8, 17, 12, 30, 0))
 
         cur_time_utc = cur_time.astimezone(pytz.utc)
-        self.publish_target_info(format_timestamp(cur_time_utc))
         # subscribe to ILC start event
         ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
         _log.debug('Subscribing to ' + ilc_start_topic)
         self.vip.pubsub.subscribe(peer='pubsub',
                                   prefix=ilc_start_topic,
                                   callback=self.on_ilc_start)
+
+        # Always put this line at the end of the method
+        self.publish_target_info(format_timestamp(cur_time_utc))
 
     def on_ilc_start(self, peer, sender, bus, topic, headers, message):
         local_tz = pytz.timezone(self.tz)
