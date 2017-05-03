@@ -163,6 +163,7 @@ class PGnEAgent(Agent):
                                        start=start_time_utc.isoformat(' '),
                                        count=1000000,
                                        order="LAST_TO_FIRST").get(timeout=100)
+            _log.debug("PgneAgent: dataframe length is {len}".format(len=len(result)))
             if len(result) > 0:
                 df2 = pd.DataFrame(result['values'], columns=[self.ts_name, point])
                 df2[self.ts_name] = pd.to_datetime(df2[self.ts_name], utc=True)
@@ -182,6 +183,8 @@ class PGnEAgent(Agent):
             df_extension = df_extension.set_index([self.ts_name])
             df_extension = df.append(df_extension)
             result_df = self.calculate_baseline_logic(df_extension, event_start_utc, event_end_utc)
+        else:
+            _log.debug("PgneAgent: df is None")
 
         if result_df is not None:
             #self.publish_baseline(result_df, cur_time_utc)
@@ -198,6 +201,8 @@ class PGnEAgent(Agent):
                 "value_hr1": meta,
                 "value_hr2": meta
             }]
+        else:
+            _log.debug("PgneAgent: result_df is None")
 
         # Schedule the next run at minute 30 of next hour
         # one_hour = timedelta(hours=1)
@@ -239,7 +244,7 @@ class PGnEAgent(Agent):
 
         df_length = len(df.index)
         if (df_length < 11): #10prev business day + current day
-            _log.exception('Not enough data to process')
+            _log.exception('PgneAgent: Not enough data to process')
             return None
 
         for i in range(0, 24):
@@ -318,6 +323,7 @@ class PGnEAgent(Agent):
         #         value=values[i]))
 
     def save_4_debug(self, df, name):
+        _log.exception('PgneAgent: saving to {file}'.format(file=name))
         if self.debug_folder != None:
             try:
                 df.to_csv(self.debug_folder + name)
