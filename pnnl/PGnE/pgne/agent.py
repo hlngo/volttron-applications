@@ -90,7 +90,7 @@ class PGnEAgent(Agent):
         self.ts_name = self.config.get('ts_name')
 
         self.tz = self.config.get('tz')
-        #Debug
+        # Debug
         self.debug_folder = self.config.get('debug_folder')
 
         #
@@ -98,13 +98,13 @@ class PGnEAgent(Agent):
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
-        #self.core.periodic(self.schedule_run_in_sec, self.calculate_latest_coeffs)
+        # self.core.periodic(self.schedule_run_in_sec, self.calculate_latest_coeffs)
 
         # cur_time = local_tz.localize(datetime.now())
         # FOR TESTING
-        #local_tz = pytz.timezone(self.tz)
-        #cur_time = local_tz.localize(datetime(2016, 8, 16, 8, 0, 0))
-        #return_values = self.calculate_latest_baseline(cur_time)
+        # local_tz = pytz.timezone(self.tz)
+        # cur_time = local_tz.localize(datetime(2016, 8, 16, 8, 0, 0))
+        # return_values = self.calculate_latest_baseline(cur_time)
         pass
 
     @RPC.export('get_prediction')
@@ -136,7 +136,7 @@ class PGnEAgent(Agent):
         # Support USFederalHoliday only, add custom holidays later (state, regional, etc.)
         local_tz = pytz.timezone(self.tz)
         cur_time_local = cur_time_utc.astimezone(local_tz)
-        start_time_local = cur_time_local - 10*self.bday_us
+        start_time_local = cur_time_local - 10 * self.bday_us
         start_time_local = start_time_local.replace(
             hour=0, minute=0, second=0, microsecond=0)
         start_time_utc = start_time_local.astimezone(pytz.utc)
@@ -145,7 +145,7 @@ class PGnEAgent(Agent):
             cur_time_utc.replace(minute=0, second=0, microsecond=0) + one_hour
         next_time_utc2 = next_time_utc1 + one_hour
 
-        #Get data
+        # Get data
         unit = self.power_unit
         df_extension = {self.ts_name: [
             next_time_utc1.strftime('%Y-%m-%d %H:%M:%S'),
@@ -175,10 +175,10 @@ class PGnEAgent(Agent):
                 df_extension[point] = [-1.0]
             df_extension[point].append(-1.0)
 
-        #Calculate coefficients
+        # Calculate coefficients
         result_df = None
         if df is not None and not df.empty:
-            #Expand dataframe for 2hour prediction
+            # Expand dataframe for 2hour prediction
             df_extension = pd.DataFrame(df_extension)
             df_extension = df_extension.set_index([self.ts_name])
             df_extension = df.append(df_extension)
@@ -187,7 +187,7 @@ class PGnEAgent(Agent):
             _log.debug("PgneAgent: df is None")
 
         if result_df is not None:
-            #self.publish_baseline(result_df, cur_time_utc)
+            # self.publish_baseline(result_df, cur_time_utc)
             last_idx = len(result_df.index) - 1
             sec_last_idx = last_idx - 1
             # use adj avg for 10 day
@@ -222,7 +222,7 @@ class PGnEAgent(Agent):
 
     def calculate_baseline_logic(self, dP, event_start_utc, event_end_utc):
         # Not used anymore, it's here for information purpose
-        #dP['DayOfWeek'] = dP.index.map(lambda v: v.weekday())
+        # dP['DayOfWeek'] = dP.index.map(lambda v: v.weekday())
         dP['DayOfWeek'] = dP.index.map(lambda v: self.map_day(v))
 
         # Delete the non business days
@@ -233,17 +233,18 @@ class PGnEAgent(Agent):
         dP['month'] = dP.index.month
         dP['hour'] = dP.index.hour
         dP['day'] = dP.index.day
-        dP = dP[dP.DayOfWeek < 5] #Not sat/sun/holiday
+        dP = dP[dP.DayOfWeek < 5]  # Not sat/sun/holiday
 
         # Hourly average value
         df = dP.resample('60min').mean()
-        #dP = dP.dropna()
+        # dP = dP.dropna()
         self.save_4_debug(df, 'data1.csv')
 
         df = df.pivot_table(index=["year", "month", "day"], columns=["hour"], values=[self.power_name])
+        _log.debug("PgneAgent: creating pivot table")
 
         df_length = len(df.index)
-        if (df_length < 11): #10prev business day + current day
+        if (df_length < 11):  # 10prev business day + current day
             _log.exception('PgneAgent: Not enough data to process')
             return None
 
@@ -266,7 +267,7 @@ class PGnEAgent(Agent):
         dq_length = dq_length - 4
         dq["Adj"] = 1.0
         for i in range(0, dq_length):
-            dq['Adj'][i + 4] = (dq[self.power_name][i:i+3].mean()) / (dq['pow_avg'][i:i + 3].mean())
+            dq['Adj'][i + 4] = (dq[self.power_name][i:i + 3].mean()) / (dq['pow_avg'][i:i + 3].mean())
 
         dq.loc[dq['Adj'] < 0.6, 'Adj'] = 0.6
         dq.loc[dq['Adj'] > 1.4, 'Adj'] = 1.4
@@ -281,23 +282,23 @@ class PGnEAgent(Agent):
         topic_prefix = topic_tmpl.format(campus=self.site,
                                          building=self.building)
         headers = {'Date': format_timestamp(cur_time)}
-        last_idx = len(df.index)-1
+        last_idx = len(df.index) - 1
         sec_last_idx = last_idx - 1
-        #avg 10 day
+        # avg 10 day
         topic1 = topic_prefix + "avg10"
         value1 = df['pow_avg'][last_idx]
-        #adj avg 10 day
+        # adj avg 10 day
         topic2 = topic_prefix + "adj_avg10"
         value_hr1 = df['pow_adj_avg'][sec_last_idx]
         value_hr2 = df['pow_adj_avg'][last_idx]
-        #avg 5 hottest in 10 day
+        # avg 5 hottest in 10 day
         topic3 = topic_prefix + "hot5_avg10"
         value3 = df['hot5_pow_avg'][last_idx]
-        #adj avg 5 hottest in 10 day
+        # adj avg 5 hottest in 10 day
         topic4 = topic_prefix + "hot5_adj_avg10"
         value4 = df['hot5_pow_adj_avg'][last_idx]
 
-        #publish to message bus: only 10 day adjustment
+        # publish to message bus: only 10 day adjustment
         meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
         msg = [{
             "value_hr1": value_hr1,
@@ -310,7 +311,7 @@ class PGnEAgent(Agent):
             'pubsub', topic2, headers, msg).get(timeout=10)
         # _log.debug("{topic}: {value}".format(
         #     topic=topic2, value=msg))
-        #publish to message bus
+        # publish to message bus
         # topics = [topic1,topic2,topic3,topic4]
         # values = [value1,value2,value3,value4]
         # meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
@@ -330,12 +331,14 @@ class PGnEAgent(Agent):
             except Exception as ex:
                 _log.debug(ex)
 
+
 def main(argv=sys.argv):
     '''Main method called by the eggsecutable.'''
     try:
         utils.vip_main(PGnEAgent)
     except Exception as e:
         _log.exception('unhandled exception')
+
 
 if __name__ == '__main__':
     # Entry point for script
