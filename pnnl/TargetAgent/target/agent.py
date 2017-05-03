@@ -85,6 +85,7 @@ class TargetAgent(Agent):
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
+        _log.debug('TargetAgent: OnStart ')
         local_tz = pytz.timezone(self.tz)
         # for real time
         cur_time = local_tz.localize(datetime.now())
@@ -95,7 +96,7 @@ class TargetAgent(Agent):
         cur_time_utc = cur_time.astimezone(pytz.utc)
         # subscribe to ILC start event
         ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
-        _log.debug('Subscribing to ' + ilc_start_topic)
+        _log.debug('TargetAgent: Subscribing to ' + ilc_start_topic)
         self.vip.pubsub.subscribe(peer='pubsub',
                                   prefix=ilc_start_topic,
                                   callback=self.on_ilc_start)
@@ -117,8 +118,8 @@ class TargetAgent(Agent):
         """
         # Get info from OpenADR, with timezone info
         local_tz = pytz.timezone(self.tz)
-        start_time = local_tz.localize(datetime(2017, 5, 2, 13, 0, 0))
-        end_time = local_tz.localize(datetime(2017, 5, 2, 17, 0, 0))
+        start_time = local_tz.localize(datetime(2017, 5, 3, 13, 0, 0))
+        end_time = local_tz.localize(datetime(2017, 5, 3, 17, 0, 0))
 
         # for simulation
         event_info = {}
@@ -134,12 +135,16 @@ class TargetAgent(Agent):
             Average value of the next 2 baseline prediction
         """
         baseline_target = None
-        message = self.vip.rpc.call(
-            'baseline_agent', 'get_prediction',
-            format_timestamp(cur_time_utc),
-            format_timestamp(start_utc),
-            format_timestamp(end_utc),
-            'UTC').get(timeout=26)
+        message = []
+        try:
+            message = self.vip.rpc.call(
+                'baseline_agent', 'get_prediction',
+                format_timestamp(cur_time_utc),
+                format_timestamp(start_utc),
+                format_timestamp(end_utc),
+                'UTC').get(timeout=26)
+        except:
+            _log.debug("TargetAgentError: Cannot RPC call to PGnE baseline agent")
         if len(message) > 0:
             values = message[0]
             prediction1 = float(values["value_hr1"])
@@ -160,10 +165,14 @@ class TargetAgent(Agent):
         """
         target_info = []
         event_info = self.get_event_info()
+        _log.debug("TargetAgent: event info length is " +
+                   str(len(event_info.keys())))
         if len(event_info.keys()) > 0:
             start = event_info['start']
             end = event_info['end']
-
+            _log.debug('TargetAgent: EventInfo '
+                       'Start: {start} End: {end} '.format(start=start,
+                                                           end=end))
             cur_time = parser.parse(in_time)
             if cur_time.tzinfo is None:
                 tz = pytz.timezone(in_tz)
@@ -197,8 +206,15 @@ class TargetAgent(Agent):
                         "target": meta
                     }]
                 _log.debug(
-                    "At time (UTC) {ts} TargetInfo is {ti}".format(ts=cur_time_utc,
-                                                                   ti=target_info))
+                    "TargetAgent: At time (UTC) {ts}"
+                    " TargetInfo is {ti}".format(ts=cur_time_utc,
+                                                 ti=target_info))
+            else:
+                _log.debug('TargetAgentError: {start} {cur} {end}'.format(
+                    start=start_utc_prev_hr,
+                    cur=cur_time_utc,
+                    end=end_utc_prev_hr
+                ))
         return target_info
 
     def publish_target_info(self, cur_time_utc):
@@ -224,7 +240,7 @@ class TargetAgent(Agent):
             }]
             self.vip.pubsub.publish(
                 'pubsub', target_topic, headers, target_msg).get(timeout=10)
-            _log.debug("{topic}: {value}".format(
+            _log.debug("TargetAgent {topic}: {value}".format(
                 topic=target_topic,
                 value=target_msg))
             # Schedule the next run at minute 30 of next hour
