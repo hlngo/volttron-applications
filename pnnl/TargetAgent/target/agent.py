@@ -186,17 +186,17 @@ class TargetAgent(Agent):
             start_utc_prev_hr = start_utc - one_hour
             end_utc_prev_hr = end_utc - one_hour
             if start_utc_prev_hr <= cur_time_utc < end_utc_prev_hr:
-                next_hour = \
+                next_hour_utc = \
                     cur_time_utc.replace(minute=0, second=0, microsecond=0) + one_hour
-                next_hour_end = next_hour.replace(minute=59, second=59)
+                next_hour_end = next_hour_utc.replace(minute=59, second=59)
                 baseline_target = \
                     self.get_baseline_target(cur_time_utc, start_utc, end_utc)
                 if baseline_target is not None:
-                    meta = {'type': 'float', 'tz': in_tz, 'units': 'kW'}
-                    time_meta = {'type': 'datetime', 'tz': in_tz, 'units': 'datetime'}
+                    meta = {'type': 'float', 'tz': 'UTC', 'units': 'kW'}
+                    time_meta = {'type': 'datetime', 'tz': 'UTC', 'units': 'datetime'}
                     target_info = [{
-                        "id": format_timestamp(next_hour),
-                        "start": format_timestamp(next_hour),
+                        "id": format_timestamp(next_hour_utc),
+                        "start": format_timestamp(next_hour_utc),
                         "end": format_timestamp(next_hour_end),
                         "target": baseline_target
                     }, {
@@ -224,8 +224,8 @@ class TargetAgent(Agent):
         if len(message) > 0:
             target_info = message[0]
             headers = {'Date': format_timestamp(get_aware_utc_now())}
-            meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
-            time_meta = {'type': 'datetime', 'tz': self.tz, 'units': 'datetime'}
+            meta = {'type': 'float', 'tz': 'UTC', 'units': 'kW'}
+            time_meta = {'type': 'datetime', 'UTC': self.tz, 'units': 'datetime'}
             target_topic = '/'.join(['analysis','target_agent',self.site, self.building, 'goal'])
             target_msg = [{
                 "id": target_info['id'],
