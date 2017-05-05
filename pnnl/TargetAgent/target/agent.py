@@ -88,12 +88,16 @@ class TargetAgent(Agent):
         _log.debug('TargetAgent: OnStart ')
         local_tz = pytz.timezone(self.tz)
         # for real time
+        one_hour = timedelta(hours=1)
         cur_time = local_tz.localize(datetime.now())
+        # for current hour
+        cur_time = cur_time - one_hour
 
-        # for simulation: no need
-        #cur_time = local_tz.localize(datetime(2016, 8, 17, 12, 30, 0))
+        # for simulation:
+        #cur_time = local_tz.localize(datetime(2017, 5, 2, 15, 30, 0))
 
         cur_time_utc = cur_time.astimezone(pytz.utc)
+        #next_time_utc = cur_time_utc + one_hour
         # subscribe to ILC start event
         ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
         _log.debug('TargetAgent: Subscribing to ' + ilc_start_topic)
@@ -118,8 +122,8 @@ class TargetAgent(Agent):
         """
         # Get info from OpenADR, with timezone info
         local_tz = pytz.timezone(self.tz)
-        start_time = local_tz.localize(datetime(2017, 5, 3, 13, 0, 0))
-        end_time = local_tz.localize(datetime(2017, 5, 3, 17, 0, 0))
+        start_time = local_tz.localize(datetime(2017, 5, 5, 13, 0, 0))
+        end_time = local_tz.localize(datetime(2017, 5, 5, 17, 0, 0))
 
         # for simulation
         event_info = {}
@@ -210,7 +214,7 @@ class TargetAgent(Agent):
                     " TargetInfo is {ti}".format(ts=cur_time_utc,
                                                  ti=target_info))
             else:
-                _log.debug('TargetAgentError: {start} {cur} {end}'.format(
+                _log.debug('TargetAgent: Not in event timeframe {start} {cur} {end}'.format(
                     start=start_utc_prev_hr,
                     cur=cur_time_utc,
                     end=end_utc_prev_hr
@@ -225,7 +229,7 @@ class TargetAgent(Agent):
             target_info = message[0]
             headers = {'Date': format_timestamp(get_aware_utc_now())}
             meta = {'type': 'float', 'tz': 'UTC', 'units': 'kW'}
-            time_meta = {'type': 'datetime', 'UTC': self.tz, 'units': 'datetime'}
+            time_meta = {'type': 'datetime', 'tz': 'UTC', 'units': 'datetime'}
             target_topic = '/'.join(['analysis','target_agent',self.site, self.building, 'goal'])
             target_msg = [{
                 "id": target_info['id'],
@@ -243,13 +247,13 @@ class TargetAgent(Agent):
             _log.debug("TargetAgent {topic}: {value}".format(
                 topic=target_topic,
                 value=target_msg))
-            # Schedule the next run at minute 30 of next hour
-            one_hour = timedelta(hours=1)
-            next_update_time = \
-                cur_time_utc.replace(minute=30, second=0, microsecond=0) + one_hour
-            self._still_connected_event = self.core.schedule(
-                next_update_time, self.publish_target_info,
-                format_timestamp(next_update_time))
+        # Schedule the next run at minute 30 of next hour
+        one_hour = timedelta(hours=1)
+        next_update_time = \
+            cur_time_utc.replace(minute=30, second=0, microsecond=0) + one_hour
+        self._still_connected_event = self.core.schedule(
+            next_update_time, self.publish_target_info,
+            format_timestamp(next_update_time))
 
 def main(argv=sys.argv):
     '''Main method called by the eggsecutable.'''

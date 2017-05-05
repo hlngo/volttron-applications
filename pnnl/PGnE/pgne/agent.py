@@ -90,6 +90,7 @@ class PGnEAgent(Agent):
         self.ts_name = self.config.get('ts_name')
 
         self.tz = self.config.get('tz')
+
         #Debug
         self.debug_folder = self.config.get('debug_folder')
 
@@ -247,7 +248,7 @@ class PGnEAgent(Agent):
         if (df_length < 11): #10prev business day + current day
             _log.exception('PgneAgent: Not enough data to process')
             return None
-
+        self.save_4_debug(df, 'data2.csv')
         for i in range(0, 24):
             df['pow_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
 
@@ -256,9 +257,14 @@ class PGnEAgent(Agent):
         df = df.stack(level=['hour'])
         df = df.dropna()
         dq = df.reset_index()
-        dq[self.ts_name] = pd.to_datetime(
-            dq.year.astype(int).apply(str) + '/' + dq.month.astype(int).apply(str) + '/' + dq.day.astype(int).apply(
-                str) + ' ' + dq.hour.astype(int).apply(str) + ":00", format='%Y/%m/%d %H:%M')
+        try:
+            dq[self.ts_name] = pd.to_datetime(
+                dq.year.astype(int).apply(str) + '/' + dq.month.astype(int).apply(str) + '/' + dq.day.astype(int).apply(
+                    str) + ' ' + dq.hour.astype(int).apply(str) + ":00", format='%Y/%m/%d %H:%M')
+        except:
+            _log.error("PGnEAgent: Hole in data. Please check data3.csv for info. Stop Calculation.")
+            return None
+
         dq = dq.set_index([self.ts_name])
         dq = dq.drop(['year', 'month', 'day', 'hour'], axis=1)
         self.save_4_debug(dq, 'data4.csv')
@@ -269,11 +275,12 @@ class PGnEAgent(Agent):
         for i in range(0, dq_length):
             dq['Adj'][i + 4] = (dq[self.power_name][i:i+3].mean()) / (dq['pow_avg'][i:i + 3].mean())
 
+        self.save_4_debug(dq, 'data5.csv')
         dq.loc[dq['Adj'] < 0.6, 'Adj'] = 0.6
         dq.loc[dq['Adj'] > 1.4, 'Adj'] = 1.4
         dq['Adj'] = dq[dq.index >= event_start_utc]['Adj'][0]
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
-        self.save_4_debug(dq, 'data5.csv')
+        self.save_4_debug(dq, 'data6.csv')
 
         return dq
 
@@ -324,7 +331,7 @@ class PGnEAgent(Agent):
         #         value=values[i]))
 
     def save_4_debug(self, df, name):
-        _log.exception('PgneAgent: saving to {file}'.format(file=name))
+        _log.debug('PgneAgent: saving to {file}'.format(file=name))
         if self.debug_folder != None:
             try:
                 df.to_csv(self.debug_folder + name)
