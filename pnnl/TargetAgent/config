@@ -1,9 +1,45 @@
 {
 	"campus": "PNNL",
-	"building": "350",
-    "tz": "UTC",
-    "CBP": 5
+	"building": "SIMULINK",
+    "tz": "US/Pacific",
+
+    #if dr_mode is not "manual" (e.g. auto) then start & end_time are not used
+    "dr_mode": "manual",
+    "start_time": "2017-08-15 13:00:00",
+    "end_time": "2017-08-15 17:00:00",
+    "cur_time": "2017-08-15 13:00:00",
+
+    #continute publishing target value after dr event
+    "cont_after_dr": "yes",
+    "occ_time": "2017-08-15 20:00:00",
 
     #optional for debug purpose
-    #"debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/TargetAgent/"
+    #"debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/TargetAgent/",
+
+    "cbp": [
+        0, #Midnight
+        0,
+        0, #2:00AM
+        0,
+        0, #4:00AM
+        0,
+        0, #6:00AM
+        0,
+        0, #8:00AM
+        0,
+        0, #10:00AM
+        0,
+        0, #Noon
+        5,
+        5, #2:00PM
+        5,
+        5, #4:00PM
+        0,
+        0, #6:00PM
+        0,
+        0, #8:00PM
+        0,
+        0, #10:00PM
+        0  #11:00PM
+    ]
 }

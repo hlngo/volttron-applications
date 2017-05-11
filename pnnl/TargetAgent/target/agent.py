@@ -77,27 +77,63 @@ class TargetAgent(Agent):
     def __init__(self, config_path, **kwargs):
         super(TargetAgent, self).__init__(**kwargs)
         self.config = utils.load_config(config_path)
+
+        # Building info
         self.site = self.config.get('campus')
         self.building = self.config.get('building')
+
+        # Local timezone
         self.tz = self.config.get('tz')
+        self.local_tz = pytz.timezone(self.tz)
+
+        # Bidding value
+        self.cbp = self.config.get('cbp', None)
+        if self.cbp is None:
+            raise "CBP values are required"
+        if len(self.cbp)<24:
+            raise "CBP is required for every hour (i.e., 24 values)"
+
+        #Occupancy
+        self.cont_after_dr = self.config.get('cont_after_dr')
+        self.occ_time = self.config.get('occ_time')
+        if self.cont_after_dr == 'yes':
+            try:
+                self.occ_time = parser.parse(self.occ_time)
+                self.occ_time = self.local_tz.localize(self.occ_time)
+                self.occ_time_utc = self.occ_time.astimezone(pytz.utc)
+            except:
+                raise "The DR was set to continue after end time " \
+                      "but could not parse occupancy end time"
+
+        # DR mode
+        self.dr_mode = self.config.get('dr_mode')
+        self.start_time = self.config.get('start_time')
+        self.end_time = self.config.get('end_time')
+        self.cur_time = self.config.get('cur_time')
+        if self.dr_mode == 'manual':
+            try:
+                self.start_time = parser.parse(self.start_time)
+                self.end_time = parser.parse(self.end_time)
+                self.cur_time = parser.parse(self.cur_time)
+            except:
+                raise "The DR mode is manual mode but could not " \
+                      "parse start, end, or current time"
+
+        # Debug folder
         self.debug_folder = self.config.get('debug_folder')
-        self.cbp = float(self.config.get('CBP'))
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
         _log.debug('TargetAgent: OnStart ')
-        local_tz = pytz.timezone(self.tz)
-        # for real time
         one_hour = timedelta(hours=1)
-        cur_time = local_tz.localize(datetime.now())
-        # for current hour
+        cur_time = self.local_tz.localize(datetime.now())
+        if self.dr_mode == 'manual':
+            cur_time = self.local_tz.localize(self.cur_time)
+
+        # Set cur_time to previous hour to get current hour baseline values
         cur_time = cur_time - one_hour
-
-        # for simulation:
-        #cur_time = local_tz.localize(datetime(2017, 5, 2, 15, 30, 0))
-
         cur_time_utc = cur_time.astimezone(pytz.utc)
-        #next_time_utc = cur_time_utc + one_hour
+
         # subscribe to ILC start event
         ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
         _log.debug('TargetAgent: Subscribing to ' + ilc_start_topic)
@@ -109,8 +145,7 @@ class TargetAgent(Agent):
         self.publish_target_info(format_timestamp(cur_time_utc))
 
     def on_ilc_start(self, peer, sender, bus, topic, headers, message):
-        local_tz = pytz.timezone(self.tz)
-        cur_time = local_tz.localize(datetime.now())
+        cur_time = self.local_tz.localize(datetime.now())
         cur_time_utc = cur_time.astimezone(pytz.utc)
         self.publish_target_info(format_timestamp(cur_time_utc))
 
@@ -121,9 +156,12 @@ class TargetAgent(Agent):
             A dictionary that has start & end time for event day
         """
         # Get info from OpenADR, with timezone info
-        local_tz = pytz.timezone(self.tz)
-        start_time = local_tz.localize(datetime(2017, 5, 5, 13, 0, 0))
-        end_time = local_tz.localize(datetime(2017, 5, 5, 17, 0, 0))
+        if self.dr_mode == 'manual':
+            start_time = self.local_tz.localize(self.start_time)
+            end_time = self.local_tz.localize(self.end_time)
+        else: #from OpenADR agent
+            start_time = self.local_tz.localize(datetime(2017, 5, 3, 13, 0, 0))
+            end_time = self.local_tz.localize(datetime(2017, 5, 3, 17, 0, 0))
 
         # for simulation
         event_info = {}
@@ -132,7 +170,7 @@ class TargetAgent(Agent):
 
         return event_info
 
-    def get_baseline_target(self, cur_time_utc, start_utc, end_utc):
+    def get_baseline_target(self, cur_time_utc, start_utc, end_utc, cbp):
         """
         Get baseline value from PGNE agent
         Returns:
@@ -149,12 +187,14 @@ class TargetAgent(Agent):
                 'UTC').get(timeout=26)
         except:
             _log.debug("TargetAgentError: Cannot RPC call to PGnE baseline agent")
+
         if len(message) > 0:
             values = message[0]
             prediction1 = float(values["value_hr1"])
             prediction2 = float(values["value_hr2"])
-            baseline_target = (prediction1+prediction2)/2.0
-            baseline_target -= self.cbp
+            #baseline_target = (prediction1+prediction2)/2.0
+            baseline_target = prediction1
+            baseline_target -= cbp
         return baseline_target
 
     @RPC.export('get_target_info')
@@ -189,12 +229,28 @@ class TargetAgent(Agent):
             one_hour = timedelta(hours=1)
             start_utc_prev_hr = start_utc - one_hour
             end_utc_prev_hr = end_utc - one_hour
+
+            # Use occupancy time if cont_after_dr is enabled
+            if self.cont_after_dr:
+                end_utc_prev_hr = self.occ_time_utc - one_hour
+
             if start_utc_prev_hr <= cur_time_utc < end_utc_prev_hr:
                 next_hour_utc = \
                     cur_time_utc.replace(minute=0, second=0, microsecond=0) + one_hour
                 next_hour_end = next_hour_utc.replace(minute=59, second=59)
+
+                # Decide cpb value
+                cur_time_local = cur_time_utc.astimezone(self.local_tz)
+                cbp_idx = cur_time_local.hour
+                cbp = self.cbp[cbp_idx]
+                if cur_time_utc>end_utc:
+                    cbp = 0
+
+                # Calculate baseline target
                 baseline_target = \
-                    self.get_baseline_target(cur_time_utc, start_utc, end_utc)
+                    self.get_baseline_target(cur_time_utc, start_utc, end_utc, cbp)
+
+                # Package output
                 if baseline_target is not None:
                     meta = {'type': 'float', 'tz': 'UTC', 'units': 'kW'}
                     time_meta = {'type': 'datetime', 'tz': 'UTC', 'units': 'datetime'}
@@ -247,10 +303,12 @@ class TargetAgent(Agent):
             _log.debug("TargetAgent {topic}: {value}".format(
                 topic=target_topic,
                 value=target_msg))
+
         # Schedule the next run at minute 30 of next hour
         one_hour = timedelta(hours=1)
         next_update_time = \
             cur_time_utc.replace(minute=30, second=0, microsecond=0) + one_hour
+
         self._still_connected_event = self.core.schedule(
             next_update_time, self.publish_target_info,
             format_timestamp(next_update_time))

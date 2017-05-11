@@ -83,6 +83,8 @@ class PGnEAgent(Agent):
         self.config = utils.load_config(config_path)
         self.site = self.config.get('campus')
         self.building = self.config.get('building')
+        self.out_temp_unit = self.config.get('out_temp_unit')
+        self.out_temp_name = self.config.get('out_temp_name')
         self.power_unit = self.config.get('power_unit')
         self.power_name = self.config.get('power_name')
         self.aggregate_in_min = self.config.get('aggregate_in_min')
@@ -130,14 +132,16 @@ class PGnEAgent(Agent):
     def calculate_latest_baseline(self, cur_time_utc, event_start_utc, event_end_utc):
         baseline_values = []
         unit_topic_tmpl = "{campus}/{building}/{unit}/{point}"
-        unit_points = [self.power_name]
+        #unit_points = [self.power_name]
+        unit_points = [self.out_temp_name, self.power_name]
         df = None
 
         # Calculate start time as midnight of 10 business day before the cur date
+        # Use 15 days for safety of not having enough data after filtering out <0 and nan values
         # Support USFederalHoliday only, add custom holidays later (state, regional, etc.)
         local_tz = pytz.timezone(self.tz)
         cur_time_local = cur_time_utc.astimezone(local_tz)
-        start_time_local = cur_time_local - 10*self.bday_us
+        start_time_local = cur_time_local - 15*self.bday_us
         start_time_local = start_time_local.replace(
             hour=0, minute=0, second=0, microsecond=0)
         start_time_utc = start_time_local.astimezone(pytz.utc)
@@ -147,17 +151,23 @@ class PGnEAgent(Agent):
         next_time_utc2 = next_time_utc1 + one_hour
 
         #Get data
-        unit = self.power_unit
+        unit = self.out_temp_unit
         df_extension = {self.ts_name: [
             next_time_utc1.strftime('%Y-%m-%d %H:%M:%S'),
             next_time_utc2.strftime('%Y-%m-%d %H:%M:%S')
         ]}
         df_extension[self.ts_name] = pd.to_datetime(df_extension[self.ts_name])
         for point in unit_points:
+            if point == self.power_name:
+                unit = self.power_unit
             unit_topic = unit_topic_tmpl.format(campus=self.site,
                                                 building=self.building,
                                                 unit=unit,
                                                 point=point)
+            # Remove empty unit or building
+            unit_topic = unit_topic.replace("//", "/")
+
+            # Query data
             result = self.vip.rpc.call('platform.historian',
                                        'query',
                                        topic=unit_topic,
@@ -173,8 +183,8 @@ class PGnEAgent(Agent):
                 df2 = df2.groupby([pd.TimeGrouper(key=self.ts_name, freq=self.aggregate_freq)]).mean()
                 df = df2 if df is None else pd.merge(df, df2, how='outer', left_index=True, right_index=True)
             if point not in df_extension:
-                df_extension[point] = [-1.0]
-            df_extension[point].append(-1.0)
+                df_extension[point] = [99999]
+            df_extension[point].append(99999)
 
         #Calculate coefficients
         result_df = None
@@ -192,8 +202,11 @@ class PGnEAgent(Agent):
             last_idx = len(result_df.index) - 1
             sec_last_idx = last_idx - 1
             # use adj avg for 10 day
-            value_hr2 = result_df['pow_adj_avg'][last_idx]
-            value_hr1 = result_df['pow_adj_avg'][sec_last_idx]
+            #value_hr2 = result_df['pow_adj_avg'][last_idx]
+            #value_hr1 = result_df['pow_adj_avg'][sec_last_idx]
+            # use hot5 adj avg
+            value_hr2 = result_df['hot5_pow_adj_avg'][last_idx]
+            value_hr1 = result_df['hot5_pow_adj_avg'][sec_last_idx]
             meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
             baseline_values = [{
                 "value_hr1": value_hr1,
@@ -205,14 +218,6 @@ class PGnEAgent(Agent):
         else:
             _log.debug("PgneAgent: result_df is None")
 
-        # Schedule the next run at minute 30 of next hour
-        # one_hour = timedelta(hours=1)
-        # next_update_time = \
-        #     cur_time.replace(minute=20, second=0, microsecond=0) + one_hour
-        # self._still_connected_event = self.core.schedule(
-        #     next_update_time, self.calculate_latest_baseline)
-        # _log.debug("Baseline values: ")
-        # _log.debug(baseline_values)
         return baseline_values
 
     def map_day(self, d):
@@ -228,6 +233,7 @@ class PGnEAgent(Agent):
 
         # Delete the non business days
         dP.columns = [
+            self.out_temp_name,
             self.power_name,
             "DayOfWeek"]
         dP['year'] = dP.index.year
@@ -237,20 +243,41 @@ class PGnEAgent(Agent):
         dP = dP[dP.DayOfWeek < 5] #Not sat/sun/holiday
 
         # Hourly average value
+        self.save_4_debug(dP, 'data0.csv')
+        dP = dP[dP[self.power_name] > 0].dropna()
         df = dP.resample('60min').mean()
-        #dP = dP.dropna()
+        df = df.dropna()
         self.save_4_debug(df, 'data1.csv')
+
         _log.debug("PgneAgent: Creating pivot table")
-        df = df.pivot_table(index=["year", "month", "day"], columns=["hour"], values=[self.power_name])
+        df = df.pivot_table(index=["year", "month", "day"], columns=["hour"], values=[self.out_temp_name, self.power_name])
+        #df = df.pivot_table(index=["year", "month", "day"], columns=["hour"], values=[self.power_name])
         _log.debug("PgneAgent: Created pivot table")
 
         df_length = len(df.index)
         if (df_length < 11): #10prev business day + current day
             _log.exception('PgneAgent: Not enough data to process')
             return None
+
+        # Average using high five outdoor temperature data based on 10 day moving windows
+        for i in range(0, df_length):
+            for j in range(0, 24):
+                df['hot5_pow_avg', j] = None
+        for i in range(10, df_length):
+            for j in range(0, 24):
+                df['hot5_pow_avg', j][i] = \
+                    df.ix[i-10:i-1, :].sort([(self.out_temp_name, j)], ascending=False).head(5).ix[:, (j+24):(j+25)].mean().ix[0]
+        self.save_4_debug(df, 'data2h5.csv')
+
+        # Average based on 10 day moving windows
+        for i in range(0, 24):
+            df['Tout_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
+
+
         self.save_4_debug(df, 'data2.csv')
         for i in range(0, 24):
-            df['pow_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
+            df['pow_avg', i] = df.ix[:, i + 24:i + 25].rolling(window=10, min_periods=10).mean().shift()
+            #df['pow_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
 
         self.save_4_debug(df, 'data3.csv')
 
@@ -278,13 +305,31 @@ class PGnEAgent(Agent):
         self.save_4_debug(dq, 'data5.csv')
         dq.loc[dq['Adj'] < 0.6, 'Adj'] = 0.6
         dq.loc[dq['Adj'] > 1.4, 'Adj'] = 1.4
+
         dq['Adj'] = dq[dq.index >= event_start_utc]['Adj'][0]
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
+
+
+        dq_length = len(dq.index) - 4
+        dq["Adj2"] = 1.0
+        for i in range(0, dq_length):
+            dq['Adj2'][i + 4] = (dq[self.power_name][i:i+3].mean()) / (dq['hot5_pow_avg'][i:i + 3].mean())
         self.save_4_debug(dq, 'data6.csv')
+        dq['Adj2'] = dq.Adj2.shift(2)
+        dq.loc[dq['Adj2'] < 0.6, 'Adj2'] = 0.6
+        dq.loc[dq['Adj2'] > 1.4, 'Adj2'] = 1.4
+        self.save_4_debug(dq, 'data7.csv')
+        dq['Adj2'] = dq[dq.index >= event_start_utc]['Adj2'][0]
+        self.save_4_debug(dq, 'data8.csv')
+        dq['hot5_pow_adj_avg'] = dq['hot5_pow_avg'] * dq['Adj2']
+        self.save_4_debug(dq, 'data9.csv')
 
         return dq
 
     def publish_baseline(self, df, cur_time):
+        """
+        This method is obsolete. Keep here for reference only.
+        """
         topic_tmpl = "analysis/PGnE/{campus}/{building}/"
         topic_prefix = topic_tmpl.format(campus=self.site,
                                          building=self.building)
