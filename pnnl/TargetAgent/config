@@ -9,13 +9,12 @@
     "end_time": "2017-08-15 17:00:00",
     "cur_time": "2017-08-15 13:00:00",
 
-    #DR days that will be excluded from baseline calculation
-    "dr_days": ["2017-08-13","2017-07-20"],
-
     #continute publishing target value after dr event
     "cont_after_dr": "yes",
     "occ_time": "2017-08-15 20:00:00",
 
+    #DR days that will be excluded from baseline calculation
+    "dr_days": ["2017-08-13","2017-07-20"],
     "simulation_running": "True",
 
     #optional for debug purpose
