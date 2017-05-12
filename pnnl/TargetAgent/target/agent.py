@@ -60,6 +60,7 @@ import sys
 import logging
 from datetime import datetime, timedelta
 import pytz
+import dateutil.tz
 from dateutil import parser
 
 from volttron.platform.vip.agent import Agent, Core, PubSub, RPC, compat
@@ -119,8 +120,14 @@ class TargetAgent(Agent):
                 raise "The DR mode is manual mode but could not " \
                       "parse start, end, or current time"
 
+        #Simulation
+        self.simulation = self.config.get('simulation_running', True)
+        self.last_publish_time = None
+
         # Debug folder
         self.debug_folder = self.config.get('debug_folder')
+
+        _log.debug("TARGET_AGENT_DEBUG: Running simulation {}".format(self.simulation))
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
@@ -141,9 +148,32 @@ class TargetAgent(Agent):
                                   prefix=ilc_start_topic,
                                   callback=self.on_ilc_start)
 
+        if self.simulation:
+            manual_periodic = '/'.join(['devices', self.site, self.building, 'METERS'])
+            _log.debug("TARGET_AGENT_DEBUG: Simulation handler topic -- {}".format(manual_periodic))
+            self.vip.pubsub.subscribe(peer='pubsub',
+                                      prefix=manual_periodic,
+                                      callback=self.simulation_publish_handler)
+
         # Always put these 2 lines at the end of the method
         self.publish_target_info(format_timestamp(prev_time_utc))
         self.publish_target_info(format_timestamp(cur_time_utc))
+
+    def simulation_publish_handler(self, peer, sender, bus, topic, headers, message):
+        _log.debug("TARGET_AGENT_DEBUG: Running simulation publish handler")
+        tz_replace = dateutil.tz.gettz(self.tz)
+        current_time = parser.parse(headers['Date']).replace(tzinfo=tz_replace)
+
+        if self.last_publish_time is None:
+            self.last_publish_time = current_time
+
+        _log.debug("TARGET_AGENT_DEBUG: current time - {} ----- last publish time - {}".format(current_time,
+                                                                                               self.last_publish_time))
+
+        if self.last_publish_time is not None and (current_time - self.last_publish_time) >= timedelta(minutes=5):
+            _log.debug("TARGET_AGENT_DEBUG: Running periodic publish.")
+            self.publish_target_info(format_timestamp(current_time))
+            self.last_publish_time = current_time
 
     def on_ilc_start(self, peer, sender, bus, topic, headers, message):
         cur_time = self.local_tz.localize(datetime.now())
@@ -327,6 +357,9 @@ class TargetAgent(Agent):
             _log.debug("TargetAgent {topic}: {value}".format(
                 topic=target_topic,
                 value=target_msg))
+
+        if self.simulation:
+            return
 
         # Schedule the next run at minute 30 of next hour
         one_hour = timedelta(hours=1)

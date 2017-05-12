@@ -16,6 +16,8 @@
     "cont_after_dr": "yes",
     "occ_time": "2017-08-15 20:00:00",
 
+    "simulation_running": "True",
+
     #optional for debug purpose
     #"debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/TargetAgent/",
 
