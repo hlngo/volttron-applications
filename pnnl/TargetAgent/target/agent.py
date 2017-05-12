@@ -131,8 +131,8 @@ class TargetAgent(Agent):
             cur_time = self.local_tz.localize(self.cur_time)
 
         # Set cur_time to previous hour to get current hour baseline values
-        cur_time = cur_time - one_hour
         cur_time_utc = cur_time.astimezone(pytz.utc)
+        prev_time_utc = cur_time_utc - one_hour
 
         # subscribe to ILC start event
         ilc_start_topic = '/'.join([self.site, self.building, 'ilc/start'])
@@ -141,7 +141,8 @@ class TargetAgent(Agent):
                                   prefix=ilc_start_topic,
                                   callback=self.on_ilc_start)
 
-        # Always put this line at the end of the method
+        # Always put these 2 lines at the end of the method
+        self.publish_target_info(format_timestamp(prev_time_utc))
         self.publish_target_info(format_timestamp(cur_time_utc))
 
     def on_ilc_start(self, peer, sender, bus, topic, headers, message):

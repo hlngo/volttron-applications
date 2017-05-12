@@ -93,6 +93,9 @@ class PGnEAgent(Agent):
 
         self.tz = self.config.get('tz')
 
+        self.min_adj = 1
+        self.max_adj = 1.4
+
         #Debug
         self.debug_folder = self.config.get('debug_folder')
 
@@ -303,8 +306,8 @@ class PGnEAgent(Agent):
             dq['Adj'][i + 4] = (dq[self.power_name][i:i+3].mean()) / (dq['pow_avg'][i:i + 3].mean())
 
         self.save_4_debug(dq, 'data5.csv')
-        dq.loc[dq['Adj'] < 1, 'Adj'] = 1
-        dq.loc[dq['Adj'] > 1.4, 'Adj'] = 1.4
+        dq.loc[dq['Adj'] < self.min_adj, 'Adj'] = self.min_adj
+        dq.loc[dq['Adj'] > self.max_adj, 'Adj'] = self.max_adj
 
         dq['Adj'] = dq[dq.index >= event_start_utc]['Adj'][0]
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
@@ -316,8 +319,8 @@ class PGnEAgent(Agent):
             dq['Adj2'][i + 4] = (dq[self.power_name][i:i+3].mean()) / (dq['hot5_pow_avg'][i:i + 3].mean())
         self.save_4_debug(dq, 'data6.csv')
         dq['Adj2'] = dq.Adj2.shift(2)
-        dq.loc[dq['Adj2'] < 0.6, 'Adj2'] = 0.6
-        dq.loc[dq['Adj2'] > 1.4, 'Adj2'] = 1.4
+        dq.loc[dq['Adj2'] < self.min_adj, 'Adj2'] = self.min_adj
+        dq.loc[dq['Adj2'] > self.max_adj, 'Adj2'] = self.max_adj
         self.save_4_debug(dq, 'data7.csv')
         dq['Adj2'] = dq[dq.index >= event_start_utc]['Adj2'][0]
         self.save_4_debug(dq, 'data8.csv')
