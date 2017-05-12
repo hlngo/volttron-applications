@@ -9,6 +9,8 @@
     "tz": "US/Pacific",
     "aggregate_in_min": 60,
 
+    "calculation_mode": 1, #0: avg, 1: top5
+
     #optional for debug purpose
     "debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/PGnE/"
 }

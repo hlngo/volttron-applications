@@ -90,8 +90,11 @@ class PGnEAgent(Agent):
         self.aggregate_in_min = self.config.get('aggregate_in_min')
         self.aggregate_freq = str(self.aggregate_in_min) + 'Min'
         self.ts_name = self.config.get('ts_name')
+        self.calc_mode = self.config.get('calculation_mode', 0)
 
         self.tz = self.config.get('tz')
+        self.local_tz = pytz.timezone(self.tz)
+        self.one_day = timedelta(days=1)
 
         self.min_adj = 1
         self.max_adj = 1.4
@@ -114,7 +117,7 @@ class PGnEAgent(Agent):
         pass
 
     @RPC.export('get_prediction')
-    def get_prediction(self, in_time, in_start, in_end, in_tz):
+    def get_prediction(self, in_time, in_start, in_end, in_tz, exclude_days):
         cur_time = parser.parse(in_time)
         event_start = parser.parse(in_start)
         event_end = parser.parse(in_end)
@@ -130,23 +133,44 @@ class PGnEAgent(Agent):
         event_start_utc = event_start.astimezone(pytz.utc)
         event_end_utc = event_end.astimezone(pytz.utc)
         return self.calculate_latest_baseline(
-            cur_time_utc, event_start_utc, event_end_utc)
+            cur_time_utc, event_start_utc, event_end_utc, exclude_days)
 
-    def calculate_latest_baseline(self, cur_time_utc, event_start_utc, event_end_utc):
+    def calculate_latest_baseline(self, cur_time_utc,
+                                  event_start_utc, event_end_utc,
+                                  exclude_days_utc):
         baseline_values = []
         unit_topic_tmpl = "{campus}/{building}/{unit}/{point}"
-        #unit_points = [self.power_name]
-        unit_points = [self.out_temp_name, self.power_name]
+        unit_points = [self.power_name]
+        if self.calc_mode == 1:
+            unit_points = [self.out_temp_name, self.power_name]
         df = None
 
         # Calculate start time as midnight of 10 business day before the cur date
         # Use 15 days for safety of not having enough data after filtering out <0 and nan values
         # Support USFederalHoliday only, add custom holidays later (state, regional, etc.)
-        local_tz = pytz.timezone(self.tz)
-        cur_time_local = cur_time_utc.astimezone(local_tz)
+        cur_time_local = cur_time_utc.astimezone(self.local_tz)
         start_time_local = cur_time_local - 15*self.bday_us
         start_time_local = start_time_local.replace(
             hour=0, minute=0, second=0, microsecond=0)
+
+        # Exclude DR event days from calculation
+        cont = True
+        parsed_exclude_days = []
+        parsed_exclude_days_utc = []
+        for day in exclude_days_utc:
+            parsed_day_utc = parser.parse(day)
+            parsed_day_local = parsed_day_utc.astimezone(self.local_tz)
+            parsed_exclude_days.append(parsed_day_local)
+            parsed_exclude_days_utc.append(parsed_day_utc)
+        while cont:
+            cont = False
+            for day in parsed_exclude_days:
+                if day >= start_time_local:
+                    cont = True
+                    start_time_local -= self.one_day
+                    parsed_exclude_days.remove(day)
+                    break
+
         start_time_utc = start_time_local.astimezone(pytz.utc)
         one_hour = timedelta(hours=1)
         next_time_utc1 = \
@@ -176,15 +200,22 @@ class PGnEAgent(Agent):
                                        topic=unit_topic,
                                        start=start_time_utc.isoformat(' '),
                                        count=1000000,
-                                       order="LAST_TO_FIRST").get(timeout=100)
+                                       order="LAST_TO_FIRST").get(timeout=1000)
             _log.debug("PgneAgent: dataframe length is {len}".format(len=len(result)))
             if len(result) > 0:
                 df2 = pd.DataFrame(result['values'], columns=[self.ts_name, point])
                 df2[self.ts_name] = pd.to_datetime(df2[self.ts_name], utc=True)
+                # Filter days
+                df2 = df2[df2[self.ts_name] < cur_time_utc] #simulation purpose
+                for exclude_day_utc in parsed_exclude_days_utc:
+                    start = exclude_day_utc
+                    end = exclude_day_utc + self.one_day
+                    df2 = df2[(df2[self.ts_name]<start) | (df2[self.ts_name] >= end)]
+
                 df2[point] = pd.to_numeric(df2[point])
-                df2 = df2[df2[self.ts_name] < cur_time_utc]
                 df2 = df2.groupby([pd.TimeGrouper(key=self.ts_name, freq=self.aggregate_freq)]).mean()
                 df = df2 if df is None else pd.merge(df, df2, how='outer', left_index=True, right_index=True)
+
             if point not in df_extension:
                 df_extension[point] = [99999]
             df_extension[point].append(99999)
@@ -205,11 +236,12 @@ class PGnEAgent(Agent):
             last_idx = len(result_df.index) - 1
             sec_last_idx = last_idx - 1
             # use adj avg for 10 day
-            #value_hr2 = result_df['pow_adj_avg'][last_idx]
-            #value_hr1 = result_df['pow_adj_avg'][sec_last_idx]
-            # use hot5 adj avg
-            value_hr2 = result_df['hot5_pow_adj_avg'][last_idx]
-            value_hr1 = result_df['hot5_pow_adj_avg'][sec_last_idx]
+            # value_hr1 hr2 ex: 13:00 14:00 respectively
+            value_hr1 = result_df['pow_adj_avg'][sec_last_idx]
+            value_hr2 = result_df['pow_adj_avg'][last_idx]
+            if self.calc_mode == 1:
+                value_hr1 = result_df['hot5_pow_adj_avg'][sec_last_idx]
+                value_hr2 = result_df['hot5_pow_adj_avg'][last_idx]
             meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
             baseline_values = [{
                 "value_hr1": value_hr1,
@@ -235,10 +267,12 @@ class PGnEAgent(Agent):
         dP['DayOfWeek'] = dP.index.map(lambda v: self.map_day(v))
 
         # Delete the non business days
-        dP.columns = [
-            self.out_temp_name,
-            self.power_name,
-            "DayOfWeek"]
+        base_cols = [self.power_name]
+        if self.calc_mode == 1:
+            base_cols = [self.out_temp_name, self.power_name]
+        base_cols.append("DayOfWeek")
+        dP.columns = base_cols
+
         dP['year'] = dP.index.year
         dP['month'] = dP.index.month
         dP['hour'] = dP.index.hour
@@ -253,8 +287,9 @@ class PGnEAgent(Agent):
         self.save_4_debug(df, 'data1.csv')
 
         _log.debug("PgneAgent: Creating pivot table")
-        df = df.pivot_table(index=["year", "month", "day"], columns=["hour"], values=[self.out_temp_name, self.power_name])
-        #df = df.pivot_table(index=["year", "month", "day"], columns=["hour"], values=[self.power_name])
+        df = df.pivot_table(
+            index=["year", "month", "day"], columns=["hour"],
+            values=base_cols)
         _log.debug("PgneAgent: Created pivot table")
 
         df_length = len(df.index)
@@ -263,24 +298,27 @@ class PGnEAgent(Agent):
             return None
 
         # Average using high five outdoor temperature data based on 10 day moving windows
-        for i in range(0, df_length):
-            for j in range(0, 24):
-                df['hot5_pow_avg', j] = None
-        for i in range(10, df_length):
-            for j in range(0, 24):
-                df['hot5_pow_avg', j][i] = \
-                    df.ix[i-10:i-1, :].sort([(self.out_temp_name, j)], ascending=False).head(5).ix[:, (j+24):(j+25)].mean().ix[0]
-        self.save_4_debug(df, 'data2h5.csv')
+        if self.calc_mode == 1:
+            for i in range(0, df_length):
+                for j in range(0, 24):
+                    df['hot5_pow_avg', j] = None
+            for i in range(10, df_length):
+                for j in range(0, 24):
+                    df['hot5_pow_avg', j][i] = \
+                        df.ix[i-10:i-1, :].sort([(self.out_temp_name, j)], ascending=False).head(5).ix[:, (j+24):(j+25)].mean().ix[0]
+            self.save_4_debug(df, 'data2h5.csv')
 
-        # Average based on 10 day moving windows
-        for i in range(0, 24):
-            df['Tout_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
+            # Average based on 10 day moving windows
+            for i in range(0, 24):
+                df['Tout_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
 
-
-        self.save_4_debug(df, 'data2.csv')
-        for i in range(0, 24):
-            df['pow_avg', i] = df.ix[:, i + 24:i + 25].rolling(window=10, min_periods=10).mean().shift()
-            #df['pow_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
+            self.save_4_debug(df, 'data2.csv')
+            for i in range(0, 24):
+                df['pow_avg', i] = df.ix[:, i + 24:i + 25].rolling(window=10, min_periods=10).mean().shift()
+                #df['pow_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
+        else:
+            for i in range(0, 24):
+                df['pow_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
 
         self.save_4_debug(df, 'data3.csv')
 
@@ -299,8 +337,7 @@ class PGnEAgent(Agent):
         dq = dq.drop(['year', 'month', 'day', 'hour'], axis=1)
         self.save_4_debug(dq, 'data4.csv')
         # Adjusted average based on 10 day moving windows
-        dq_length = len(dq.index)
-        dq_length = dq_length - 4
+        dq_length = len(dq.index) - 4
         dq["Adj"] = 1.0
         for i in range(0, dq_length):
             dq['Adj'][i + 4] = (dq[self.power_name][i:i+3].mean()) / (dq['pow_avg'][i:i + 3].mean())
@@ -312,20 +349,21 @@ class PGnEAgent(Agent):
         dq['Adj'] = dq[dq.index >= event_start_utc]['Adj'][0]
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
 
-
-        dq_length = len(dq.index) - 4
-        dq["Adj2"] = 1.0
-        for i in range(0, dq_length):
-            dq['Adj2'][i + 4] = (dq[self.power_name][i:i+3].mean()) / (dq['hot5_pow_avg'][i:i + 3].mean())
-        self.save_4_debug(dq, 'data6.csv')
-        dq['Adj2'] = dq.Adj2.shift(2)
-        dq.loc[dq['Adj2'] < self.min_adj, 'Adj2'] = self.min_adj
-        dq.loc[dq['Adj2'] > self.max_adj, 'Adj2'] = self.max_adj
-        self.save_4_debug(dq, 'data7.csv')
-        dq['Adj2'] = dq[dq.index >= event_start_utc]['Adj2'][0]
-        self.save_4_debug(dq, 'data8.csv')
-        dq['hot5_pow_adj_avg'] = dq['hot5_pow_avg'] * dq['Adj2']
-        self.save_4_debug(dq, 'data9.csv')
+        # Adjusted average using high five outdoor temperature data based on 10 day moving windows
+        if self.calc_mode == 1:
+            dq_length = len(dq.index) - 4
+            dq["Adj2"] = 1.0
+            for i in range(0, dq_length):
+                dq['Adj2'][i + 4] = (dq[self.power_name][i:i+3].mean()) / (dq['hot5_pow_avg'][i:i + 3].mean())
+            self.save_4_debug(dq, 'data6.csv')
+            dq['Adj2'] = dq.Adj2.shift(2)
+            dq.loc[dq['Adj2'] < self.min_adj, 'Adj2'] = self.min_adj
+            dq.loc[dq['Adj2'] > self.max_adj, 'Adj2'] = self.max_adj
+            self.save_4_debug(dq, 'data7.csv')
+            dq['Adj2'] = dq[dq.index >= event_start_utc]['Adj2'][0]
+            self.save_4_debug(dq, 'data8.csv')
+            dq['hot5_pow_adj_avg'] = dq['hot5_pow_avg'] * dq['Adj2']
+            self.save_4_debug(dq, 'data9.csv')
 
         return dq
 

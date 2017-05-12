@@ -150,6 +150,27 @@ class TargetAgent(Agent):
         cur_time_utc = cur_time.astimezone(pytz.utc)
         self.publish_target_info(format_timestamp(cur_time_utc))
 
+    def get_dr_days(self):
+        """
+        Get DR days from historian previous published by OpenADR agent
+        Returns:
+            A list of dr event days
+        """
+        dr_days = self.config.get('dr_days', [])
+        parsed_dr_days = []
+        for dr_day in dr_days:
+            try:
+                parsed_dr_day = parser.parse(dr_day)
+                if parsed_dr_day.tzinfo is None:
+                    parsed_dr_day = self.local_tz.localize(parsed_dr_day)
+                parsed_dr_day_utc = parsed_dr_day.astimezone(pytz.utc)
+                parsed_dr_days.append(format_timestamp(parsed_dr_day_utc))
+            except:
+                _log.error(
+                    "TARGETAGENT: Could not parse DR day {d}".format(d=dr_day))
+
+        return parsed_dr_days
+
     def get_event_info(self):
         """
         Get event start and end datetime from OpenADR agent
@@ -179,13 +200,14 @@ class TargetAgent(Agent):
         """
         baseline_target = None
         message = []
+        dr_days = self.get_dr_days()
         try:
             message = self.vip.rpc.call(
                 'baseline_agent', 'get_prediction',
                 format_timestamp(cur_time_utc),
                 format_timestamp(start_utc),
                 format_timestamp(end_utc),
-                'UTC').get(timeout=26)
+                'UTC', dr_days).get(timeout=26)
         except:
             _log.debug("TargetAgentError: Cannot RPC call to PGnE baseline agent")
 
@@ -248,8 +270,9 @@ class TargetAgent(Agent):
                     cbp = 0
 
                 # Calculate baseline target
-                baseline_target = \
-                    self.get_baseline_target(cur_time_utc, start_utc, end_utc, cbp)
+                baseline_target = self.get_baseline_target(
+                    cur_time_utc, start_utc, end_utc, cbp,
+                )
 
                 # Package output
                 if baseline_target is not None:
