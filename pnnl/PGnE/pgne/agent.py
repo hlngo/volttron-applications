@@ -303,7 +303,7 @@ class PGnEAgent(Agent):
             dq['Adj'][i + 4] = (dq[self.power_name][i:i+3].mean()) / (dq['pow_avg'][i:i + 3].mean())
 
         self.save_4_debug(dq, 'data5.csv')
-        dq.loc[dq['Adj'] < 0.6, 'Adj'] = 0.6
+        dq.loc[dq['Adj'] < 1, 'Adj'] = 1
         dq.loc[dq['Adj'] > 1.4, 'Adj'] = 1.4
 
         dq['Adj'] = dq[dq.index >= event_start_utc]['Adj'][0]
