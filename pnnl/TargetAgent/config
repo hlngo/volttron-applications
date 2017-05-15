@@ -7,7 +7,7 @@
     "dr_mode": "manual",
     "start_time": "2017-08-15 13:00:00",
     "end_time": "2017-08-15 17:00:00",
-    "cur_time": "2017-08-15 13:00:00",
+    "cur_time": "2017-08-15 13:05:00",
 
     #continute publishing target value after dr event
     "cont_after_dr": "yes",
@@ -16,9 +16,6 @@
     #DR days that will be excluded from baseline calculation
     "dr_days": ["2017-08-13","2017-07-20"],
     "simulation_running": "True",
-
-    #optional for debug purpose
-    #"debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/TargetAgent/",
 
     "cbp": [
         0, #Midnight

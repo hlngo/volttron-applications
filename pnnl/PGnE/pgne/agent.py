@@ -100,7 +100,8 @@ class PGnEAgent(Agent):
         self.max_adj = 1.4
 
         #Debug
-        self.debug_folder = self.config.get('debug_folder')
+        self.debug_folder = self.config.get('debug_folder') + '/'
+        self.debug_folder = self.debug_folder.replace('//', '/')
 
         #
         self.bday_us = CustomBusinessDay(calendar=USFederalHolidayCalendar())

@@ -124,9 +124,6 @@ class TargetAgent(Agent):
         self.simulation = self.config.get('simulation_running', True)
         self.last_publish_time = None
 
-        # Debug folder
-        self.debug_folder = self.config.get('debug_folder')
-
         _log.debug("TARGET_AGENT_DEBUG: Running simulation {}".format(self.simulation))
 
     @Core.receiver('onstart')
