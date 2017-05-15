@@ -294,7 +294,7 @@ class TargetAgent(Agent):
 
                 # Decide cpb value
                 cur_time_local = cur_time_utc.astimezone(self.local_tz)
-                cbp_idx = cur_time_local.hour
+                cbp_idx = cur_time_local.hour + 1  # +1 for next hour
                 cbp = self.cbp[cbp_idx]
                 if cur_time_utc>end_utc:
                     cbp = 0
