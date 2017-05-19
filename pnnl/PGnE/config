@@ -1,15 +1,15 @@
 {
 	"campus": "PNNL",
-	"building": "SIMULINK",
+	"building": "350_BUILDING",
 	"power_unit": "METERS",
-    "power_name": "WholeBuildingPower",
-    "out_temp_unit": "RTU1",
-    "out_temp_name": "ThermostatZoneTemperature",
+    "power_name": "WholeBuildingPowerWithoutShopAirCompressor",
+    "out_temp_unit": "METERS",
+    "out_temp_name": "OutdoorAirTemperature",
     "ts_name": "Date",
     "tz": "US/Pacific",
     "aggregate_in_min": 60,
 
-    "calculation_mode": 1, #0: avg, 1: top5
+    "calculation_mode": 0, #0: avg, 1: top5
 
     #optional for debug purpose
     "debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/PGnE/"
