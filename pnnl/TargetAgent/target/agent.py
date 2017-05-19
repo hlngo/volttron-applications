@@ -293,12 +293,12 @@ class TargetAgent(Agent):
                 cur_time_local = cur_time_utc.astimezone(self.local_tz)
                 cbp_idx = cur_time_local.hour + 1  # +1 for next hour
                 cbp = self.cbp[cbp_idx]
-                if cur_time_utc>end_utc:
+                if cur_time_utc > end_utc:
                     cbp = 0
 
                 # Calculate baseline target
                 baseline_target = self.get_baseline_target(
-                    cur_time_utc, start_utc, end_utc, cbp,
+                    cur_time_utc, start_utc, end_utc, cbp
                 )
 
                 # Package output
@@ -309,12 +309,14 @@ class TargetAgent(Agent):
                         "id": format_timestamp(next_hour_utc),
                         "start": format_timestamp(next_hour_utc),
                         "end": format_timestamp(next_hour_end),
-                        "target": baseline_target
+                        "target": baseline_target,
+                        "cbp": cbp
                     }, {
                         "id": time_meta,
                         "start": time_meta,
                         "end": time_meta,
-                        "target": meta
+                        "target": meta,
+                        "cbp": meta
                     }]
                 _log.debug(
                     "TargetAgent: At time (UTC) {ts}"
@@ -331,41 +333,26 @@ class TargetAgent(Agent):
     def publish_target_info(self, cur_time_utc):
         cur_time_utc = parser.parse(cur_time_utc)
 
-        message = self.get_target_info(format_timestamp(cur_time_utc), 'UTC')
-        if len(message) > 0:
-            target_info = message[0]
+        target_msg = self.get_target_info(format_timestamp(cur_time_utc), 'UTC')
+        if len(target_msg) > 0:
             headers = {'Date': format_timestamp(get_aware_utc_now())}
-            meta = {'type': 'float', 'tz': 'UTC', 'units': 'kW'}
-            time_meta = {'type': 'datetime', 'tz': 'UTC', 'units': 'datetime'}
-            target_topic = '/'.join(['analysis','target_agent',self.site, self.building, 'goal'])
-            target_msg = [{
-                "id": target_info['id'],
-                "start": target_info['start'],
-                "end": target_info['end'],
-                "target": target_info['target']
-            }, {
-                "id": time_meta,
-                "start": time_meta,
-                "end": time_meta,
-                "target": meta
-            }]
+            target_topic = '/'.join(['analysis', 'target_agent', self.site, self.building, 'goal'])
             self.vip.pubsub.publish(
                 'pubsub', target_topic, headers, target_msg).get(timeout=10)
             _log.debug("TargetAgent {topic}: {value}".format(
                 topic=target_topic,
                 value=target_msg))
 
-        if self.simulation:
-            return
-
-        # Schedule the next run at minute 30 of next hour
-        one_hour = timedelta(hours=1)
-        next_update_time = \
-            cur_time_utc.replace(minute=30, second=0, microsecond=0) + one_hour
-
-        self._still_connected_event = self.core.schedule(
-            next_update_time, self.publish_target_info,
-            format_timestamp(next_update_time))
+        # Schedule next run at min 30 of next hour if not in simulation mode
+        if not self.simulation:
+            one_hour = timedelta(hours=1)
+            next_update_time = cur_time_utc.replace(minute=30,
+                                                    second=0,
+                                                    microsecond=0)
+            next_update_time += one_hour
+            self.core.schedule(
+                next_update_time, self.publish_target_info,
+                format_timestamp(next_update_time))
 
 def main(argv=sys.argv):
     '''Main method called by the eggsecutable.'''

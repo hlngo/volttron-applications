@@ -206,8 +206,9 @@ class PGnEAgent(Agent):
             if len(result) > 0:
                 df2 = pd.DataFrame(result['values'], columns=[self.ts_name, point])
                 df2[self.ts_name] = pd.to_datetime(df2[self.ts_name], utc=True)
-                # Filter days
-                df2 = df2[df2[self.ts_name] < cur_time_utc] #simulation purpose
+                # Filter days for simulation purpose
+                df2 = df2[df2[self.ts_name] < cur_time_utc]
+                # Exclude dr days
                 for exclude_day_utc in parsed_exclude_days_utc:
                     start = exclude_day_utc
                     end = exclude_day_utc + self.one_day
@@ -215,7 +216,10 @@ class PGnEAgent(Agent):
 
                 df2[point] = pd.to_numeric(df2[point])
                 df2 = df2.groupby([pd.TimeGrouper(key=self.ts_name, freq=self.aggregate_freq)]).mean()
-                df = df2 if df is None else pd.merge(df, df2, how='outer', left_index=True, right_index=True)
+                if df is None:
+                    df = df2
+                else:
+                    df = pd.merge(df, df2, how='outer', left_index=True, right_index=True)
 
             if point not in df_extension:
                 df_extension[point] = [99999]
@@ -419,7 +423,7 @@ class PGnEAgent(Agent):
 
     def save_4_debug(self, df, name):
         _log.debug('PgneAgent: saving to {file}'.format(file=name))
-        if self.debug_folder != None:
+        if self.debug_folder is not None:
             try:
                 df.to_csv(self.debug_folder + name)
             except Exception as ex:
