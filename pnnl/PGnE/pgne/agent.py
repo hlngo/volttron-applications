@@ -242,6 +242,7 @@ class PGnEAgent(Agent):
             sec_last_idx = last_idx - 1
             # use adj avg for 10 day
             # value_hr1 hr2 ex: 13:00 14:00 respectively
+            _log.debug("PGnEAgent: Building baseline values message")
             value_hr1 = result_df['pow_adj_avg'][sec_last_idx]
             value_hr2 = result_df['pow_adj_avg'][last_idx]
             if self.calc_mode == 1:
@@ -256,7 +257,9 @@ class PGnEAgent(Agent):
                 "value_hr2": meta
             }]
         else:
-            _log.debug("PgneAgent: result_df is None")
+            _log.debug("PGnEAgent: result_df is None")
+
+        _log.debug("PGnEAgent: Sending baseline values...")
 
         return baseline_values
 
@@ -353,6 +356,7 @@ class PGnEAgent(Agent):
 
         dq['Adj'] = dq[dq.index >= event_start_utc]['Adj'][0]
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
+        self.save_4_debug(dq, 'data5a.csv')
 
         # Adjusted average using high five outdoor temperature data based on 10 day moving windows
         if self.calc_mode == 1:
@@ -370,6 +374,7 @@ class PGnEAgent(Agent):
             dq['hot5_pow_adj_avg'] = dq['hot5_pow_avg'] * dq['Adj2']
             self.save_4_debug(dq, 'data9.csv')
 
+        _log.debug("PGnEAgent: Finish calculate baseline")
         return dq
 
     def publish_baseline(self, df, cur_time):
