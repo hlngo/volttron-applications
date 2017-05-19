@@ -354,7 +354,10 @@ class PGnEAgent(Agent):
         dq.loc[dq['Adj'] < self.min_adj, 'Adj'] = self.min_adj
         dq.loc[dq['Adj'] > self.max_adj, 'Adj'] = self.max_adj
 
-        dq['Adj'] = dq[dq.index >= event_start_utc]['Adj'][0]
+        #Filter out all data greater than current hour
+        if len(dq[dq.index >= event_start_utc] > 0):
+            dq['Adj'] = dq[dq.index >= event_start_utc]['Adj'][0]
+
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
         self.save_4_debug(dq, 'data5a.csv')
 
