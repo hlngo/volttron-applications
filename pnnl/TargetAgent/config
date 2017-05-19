@@ -1,9 +1,10 @@
 {
 	"campus": "PNNL",
-	"building": "350_BUILDING",
+	"building": "SIMULINK",
     "tz": "US/Pacific",
 
-    #if dr_mode is not "manual" (e.g. auto) then start & end_time are not used
+    # dr_mode: manual for simulation, auto for real test, openadr for openADR
+    # cur_time is only used in manual_mode (simulation)
     "dr_mode": "auto",
     "start_time": "2017-08-15 13:00:00",
     "end_time": "2017-08-15 17:00:00",
@@ -11,13 +12,12 @@
 
     #continute publishing target value after dr event
     "cont_after_dr": "yes",
-    "occ_time": "2017-05-19 17:00:00",
+    "occ_time": "2017-08-15 20:00:00",
 
     #DR days that will be excluded from baseline calculation
-    "dr_days": ["2017-05-15", "2017-05-16"],
-    "simulation_running": "True",
+    "dr_days": ["2017-08-13","2017-07-20"],
+    "simulation_running": false,
 
-    #Hour starting
     "cbp": [
         0, #Midnight
         0,
@@ -32,10 +32,10 @@
         0, #10:00AM
         0,
         0, #Noon
-        15,
-        10, #2:00PM
         5,
-        0, #4:00PM
+        5, #2:00PM
+        5,
+        5, #4:00PM
         0,
         0, #6:00PM
         0,

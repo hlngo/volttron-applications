@@ -111,7 +111,7 @@ class TargetAgent(Agent):
         self.start_time = self.config.get('start_time')
         self.end_time = self.config.get('end_time')
         self.cur_time = self.config.get('cur_time')
-        if self.dr_mode == 'manual':
+        if self.dr_mode == 'manual' or self.dr_mode == 'auto':
             try:
                 self.start_time = parser.parse(self.start_time)
                 self.end_time = parser.parse(self.end_time)
@@ -175,6 +175,9 @@ class TargetAgent(Agent):
     def on_ilc_start(self, peer, sender, bus, topic, headers, message):
         cur_time = self.local_tz.localize(datetime.now())
         cur_time_utc = cur_time.astimezone(pytz.utc)
+        one_hour = timedelta(hours=1)
+        prev_time_utc = cur_time_utc - one_hour
+        self.publish_target_info(format_timestamp(prev_time_utc))
         self.publish_target_info(format_timestamp(cur_time_utc))
 
     def get_dr_days(self):
@@ -205,12 +208,13 @@ class TargetAgent(Agent):
             A dictionary that has start & end time for event day
         """
         # Get info from OpenADR, with timezone info
-        if self.dr_mode == 'manual':
-            start_time = self.local_tz.localize(self.start_time)
-            end_time = self.local_tz.localize(self.end_time)
-        else: #from OpenADR agent
+
+        if self.dr_mode == 'openADR': #from OpenADR agent
             start_time = self.local_tz.localize(datetime(2017, 5, 3, 13, 0, 0))
             end_time = self.local_tz.localize(datetime(2017, 5, 3, 17, 0, 0))
+        else:
+            start_time = self.local_tz.localize(self.start_time)
+            end_time = self.local_tz.localize(self.end_time)
 
         # for simulation
         event_info = {}
