@@ -131,13 +131,15 @@ class PGnEAgent(Agent):
             event_end = tz.localize(event_end)
         # Convert to UTC before doing anything else
         cur_time_utc = cur_time.astimezone(pytz.utc)
-        event_start_utc = event_start.astimezone(pytz.utc)
-        event_end_utc = event_end.astimezone(pytz.utc)
+        #event_start_utc = event_start.astimezone(pytz.utc)
+        #event_end_utc = event_end.astimezone(pytz.utc)
+        event_start_local = event_start.astimezone(self.local_tz)
+        event_end_local = event_end.astimezone(self.local_tz)
         return self.calculate_latest_baseline(
-            cur_time_utc, event_start_utc, event_end_utc, exclude_days)
+            cur_time_utc, event_start_local, event_end_local, exclude_days)
 
     def calculate_latest_baseline(self, cur_time_utc,
-                                  event_start_utc, event_end_utc,
+                                  event_start_local, event_end_local,
                                   exclude_days_utc):
         baseline_values = []
         unit_topic_tmpl = "{campus}/{building}/{unit}/{point}"
@@ -228,11 +230,16 @@ class PGnEAgent(Agent):
         #Calculate coefficients
         result_df = None
         if df is not None and not df.empty:
-            #Expand dataframe for 2hour prediction
+            # Expand dataframe for 2hour prediction
             df_extension = pd.DataFrame(df_extension)
             df_extension = df_extension.set_index([self.ts_name])
             df_extension = df.append(df_extension)
-            result_df = self.calculate_baseline_logic(df_extension, event_start_utc, event_end_utc)
+
+            # Convert to local timezone so the day exclusion doesn't create holes in data
+            df_extension = df.tz_localize(pytz.utc).tz_convert(self.local_tz)
+
+            result_df = self.calculate_baseline_logic(
+                df_extension, event_start_local, event_end_local)
         else:
             _log.debug("PgneAgent: df is None")
 
@@ -269,7 +276,7 @@ class PGnEAgent(Agent):
             return 8
         return d.weekday()
 
-    def calculate_baseline_logic(self, dP, event_start_utc, event_end_utc):
+    def calculate_baseline_logic(self, dP, event_start_local, event_end_local):
         # Not used anymore, it's here for information purpose
         #dP['DayOfWeek'] = dP.index.map(lambda v: v.weekday())
         dP['DayOfWeek'] = dP.index.map(lambda v: self.map_day(v))
@@ -326,7 +333,7 @@ class PGnEAgent(Agent):
                 #df['pow_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
         else:
             for i in range(0, 24):
-                df['pow_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=10).mean().shift()
+                df['pow_avg', i] = df.ix[:, i:i + 1].rolling(window=10, min_periods=9).mean().shift()
 
         self.save_4_debug(df, 'data3.csv')
 
@@ -354,9 +361,9 @@ class PGnEAgent(Agent):
         dq.loc[dq['Adj'] < self.min_adj, 'Adj'] = self.min_adj
         dq.loc[dq['Adj'] > self.max_adj, 'Adj'] = self.max_adj
 
-        #Filter out all data greater than current hour
-        if len(dq[dq.index >= event_start_utc] > 0):
-            dq['Adj'] = dq[dq.index >= event_start_utc]['Adj'][0]
+        #Filter out all data greater than event start time
+        if len(dq[dq.index >= event_start_local] > 0):
+            dq['Adj'] = dq[dq.index >= event_start_local]['Adj'][0]
 
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
         self.save_4_debug(dq, 'data5a.csv')
@@ -372,7 +379,7 @@ class PGnEAgent(Agent):
             dq.loc[dq['Adj2'] < self.min_adj, 'Adj2'] = self.min_adj
             dq.loc[dq['Adj2'] > self.max_adj, 'Adj2'] = self.max_adj
             self.save_4_debug(dq, 'data7.csv')
-            dq['Adj2'] = dq[dq.index >= event_start_utc]['Adj2'][0]
+            dq['Adj2'] = dq[dq.index >= event_start_local]['Adj2'][0]
             self.save_4_debug(dq, 'data8.csv')
             dq['hot5_pow_adj_avg'] = dq['hot5_pow_avg'] * dq['Adj2']
             self.save_4_debug(dq, 'data9.csv')
