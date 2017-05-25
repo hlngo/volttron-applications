@@ -119,6 +119,7 @@ class PGnEAgent(Agent):
 
     @RPC.export('get_prediction')
     def get_prediction(self, in_time, in_start, in_end, in_tz, exclude_days):
+        _log.debug("PGnEAgent: RPC get_prediction is called...")
         cur_time = parser.parse(in_time)
         event_start = parser.parse(in_start)
         event_end = parser.parse(in_end)
