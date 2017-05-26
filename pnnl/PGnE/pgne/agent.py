@@ -188,6 +188,7 @@ class PGnEAgent(Agent):
             next_time_utc2.strftime('%Y-%m-%d %H:%M:%S')
         ]}
         df_extension[self.ts_name] = pd.to_datetime(df_extension[self.ts_name])
+        _log.debug("PGnEAgent: start querying data...")
         for point in unit_points:
             if point == self.power_name:
                 unit = self.power_unit
