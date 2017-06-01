@@ -152,8 +152,7 @@ class TargetAgent(Agent):
                                       prefix=manual_periodic,
                                       callback=self.simulation_publish_handler)
 
-        # Always put these 2 lines at the end of the method
-        self.publish_target_info(format_timestamp(prev_time_utc))
+        # Always put these lines at the end of the method
         self.publish_target_info(format_timestamp(cur_time_utc))
 
     def simulation_publish_handler(self, peer, sender, bus, topic, headers, message):
@@ -238,7 +237,7 @@ class TargetAgent(Agent):
                 format_timestamp(cur_time_utc),
                 format_timestamp(start_utc),
                 format_timestamp(end_utc),
-                'UTC', dr_days).get(timeout=26)
+                'UTC', dr_days).get(timeout=60)
         except:
             _log.debug("TargetAgentError: Cannot RPC call to PGnE baseline agent")
 
@@ -285,7 +284,7 @@ class TargetAgent(Agent):
             end_utc_prev_hr = end_utc - one_hour
 
             # Use occupancy time if cont_after_dr is enabled
-            if self.cont_after_dr:
+            if self.cont_after_dr == 'yes':
                 end_utc_prev_hr = self.occ_time_utc - one_hour
 
             if start_utc_prev_hr <= cur_time_utc < end_utc_prev_hr:
@@ -347,13 +346,15 @@ class TargetAgent(Agent):
                 topic=target_topic,
                 value=target_msg))
 
-        # Schedule next run at min 30 of next hour if not in simulation mode
+        # Schedule next run at min 30 of next hour only if current min >= 30
         if not self.simulation:
             one_hour = timedelta(hours=1)
+            cur_min = cur_time_utc.minute
             next_update_time = cur_time_utc.replace(minute=30,
                                                     second=0,
                                                     microsecond=0)
-            next_update_time += one_hour
+            if cur_min >= 30:
+                next_update_time += one_hour
             self.core.schedule(
                 next_update_time, self.publish_target_info,
                 format_timestamp(next_update_time))

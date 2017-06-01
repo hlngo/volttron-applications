@@ -216,7 +216,7 @@ class PGnEAgent(Agent):
                 for exclude_day_utc in parsed_exclude_days_utc:
                     start = exclude_day_utc
                     end = exclude_day_utc + self.one_day
-                    df2 = df2[(df2[self.ts_name]<start) | (df2[self.ts_name] >= end)]
+                    df2 = df2[(df2[self.ts_name] < start) | (df2[self.ts_name] >= end)]
 
                 df2[point] = pd.to_numeric(df2[point])
                 df2 = df2.groupby([pd.TimeGrouper(key=self.ts_name, freq=self.aggregate_freq)]).mean()
@@ -238,7 +238,7 @@ class PGnEAgent(Agent):
             df_extension = df.append(df_extension)
 
             # Convert to local timezone so the day exclusion doesn't create holes in data
-            df_extension = df.tz_localize(pytz.utc).tz_convert(self.local_tz)
+            df_extension = df_extension.tz_localize(pytz.utc).tz_convert(self.local_tz)
 
             result_df = self.calculate_baseline_logic(
                 df_extension, event_start_local, event_end_local)
