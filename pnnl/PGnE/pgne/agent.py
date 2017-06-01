@@ -364,8 +364,9 @@ class PGnEAgent(Agent):
         dq.loc[dq['Adj'] > self.max_adj, 'Adj'] = self.max_adj
 
         #Filter out all data greater than event start time
-        if len(dq[dq.index >= event_start_local] > 0):
-            dq['Adj'] = dq[dq.index >= event_start_local]['Adj'][0]
+        naive_ev_start_local = event_start_local.replace(tzinfo=None)
+        if len(dq[dq.index >= naive_ev_start_local]) > 0:
+            dq['Adj'] = dq[dq.index >= naive_ev_start_local]['Adj'][0]
 
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
         self.save_4_debug(dq, 'data5a.csv')
