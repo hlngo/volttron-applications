@@ -111,7 +111,7 @@ class TargetAgent(Agent):
         self.start_time = self.config.get('start_time')
         self.end_time = self.config.get('end_time')
         self.cur_time = self.config.get('cur_time')
-        if self.dr_mode == 'manual' or self.dr_mode == 'auto':
+        if self.dr_mode != 'open_adr':
             try:
                 self.start_time = parser.parse(self.start_time)
                 self.end_time = parser.parse(self.end_time)
@@ -121,17 +121,16 @@ class TargetAgent(Agent):
                       "parse start, end, or current time"
 
         #Simulation
-        self.simulation = self.config.get('simulation_running', True)
         self.last_publish_time = None
 
-        _log.debug("TARGET_AGENT_DEBUG: Running simulation {}".format(self.simulation))
+        _log.debug("TargetAgent: Running DR mode {}".format(self.dr_mode))
 
     @Core.receiver('onstart')
     def onstart(self, sender, **kwargs):
         _log.debug('TargetAgent: OnStart ')
         one_hour = timedelta(hours=1)
         cur_time = self.local_tz.localize(datetime.now())
-        if self.dr_mode == 'manual':
+        if self.dr_mode == 'manual' or self.dr_mode == 'dev':
             cur_time = self.local_tz.localize(self.cur_time)
 
         # Set cur_time to previous hour to get current hour baseline values
@@ -145,14 +144,14 @@ class TargetAgent(Agent):
                                   prefix=ilc_start_topic,
                                   callback=self.on_ilc_start)
 
-        if self.simulation:
+        if self.dr_mode == 'manual':
             manual_periodic = '/'.join(['devices', self.site, self.building, 'METERS'])
-            _log.debug("TARGET_AGENT_DEBUG: Simulation handler topic -- {}".format(manual_periodic))
+            _log.debug("TargetAgent: Simulation handler topic -- {}".format(manual_periodic))
             self.vip.pubsub.subscribe(peer='pubsub',
                                       prefix=manual_periodic,
                                       callback=self.simulation_publish_handler)
 
-        # Always put these lines at the end of the method
+        # Always put this line(s) at the end of the method
         self.publish_target_info(format_timestamp(cur_time_utc))
 
     def simulation_publish_handler(self, peer, sender, bus, topic, headers, message):
@@ -163,9 +162,9 @@ class TargetAgent(Agent):
         if self.last_publish_time is None:
             self.last_publish_time = current_time
 
-        _log.debug("TARGET_AGENT_DEBUG: current time - {} ----- last publish time - {}".format(current_time,
-                                                                                               self.last_publish_time))
-
+        _log.debug("TARGET_AGENT_DEBUG: current time - {} "
+                   "----- last publish time - {}".format(current_time,
+                                                         self.last_publish_time))
         if self.last_publish_time is not None and (current_time - self.last_publish_time) >= timedelta(minutes=5):
             _log.debug("TARGET_AGENT_DEBUG: Running periodic publish.")
             self.publish_target_info(format_timestamp(current_time))
@@ -196,7 +195,7 @@ class TargetAgent(Agent):
                 parsed_dr_days.append(format_timestamp(parsed_dr_day_utc))
             except:
                 _log.error(
-                    "TARGETAGENT: Could not parse DR day {d}".format(d=dr_day))
+                    "TargetAgent: Could not parse DR day {d}".format(d=dr_day))
 
         return parsed_dr_days
 
@@ -326,17 +325,16 @@ class TargetAgent(Agent):
                     " TargetInfo is {ti}".format(ts=cur_time_utc,
                                                  ti=target_info))
             else:
-                _log.debug('TargetAgent: Not in event timeframe {start} {cur} {end}'.format(
-                    start=start_utc_prev_hr,
-                    cur=cur_time_utc,
-                    end=end_utc_prev_hr
-                ))
+                _log.debug('TargetAgent: Not in event time frame'
+                           ' {start} {cur} {end}'.format(start=start_utc_prev_hr,
+                                                         cur=cur_time_utc,
+                                                         end=end_utc_prev_hr))
         return target_info
 
-    def publish_target_info(self, cur_time_utc):
-        cur_time_utc = parser.parse(cur_time_utc)
+    def publish_target_info(self, cur_analysis_time_utc):
+        cur_analysis_time_utc = parser.parse(cur_analysis_time_utc)
 
-        target_msg = self.get_target_info(format_timestamp(cur_time_utc), 'UTC')
+        target_msg = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
         if len(target_msg) > 0:
             headers = {'Date': format_timestamp(get_aware_utc_now())}
             target_topic = '/'.join(['analysis', 'target_agent', self.site, self.building, 'goal'])
@@ -347,17 +345,22 @@ class TargetAgent(Agent):
                 value=target_msg))
 
         # Schedule next run at min 30 of next hour only if current min >= 30
-        if not self.simulation:
-            one_hour = timedelta(hours=1)
-            cur_min = cur_time_utc.minute
-            next_update_time = cur_time_utc.replace(minute=30,
-                                                    second=0,
-                                                    microsecond=0)
-            if cur_min >= 30:
-                next_update_time += one_hour
-            self.core.schedule(
-                next_update_time, self.publish_target_info,
-                format_timestamp(next_update_time))
+        one_hour = timedelta(hours=1)
+        cur_min = cur_analysis_time_utc.minute
+        next_analysis_time = cur_analysis_time_utc.replace(minute=30,
+                                                           second=0,
+                                                           microsecond=0)
+        if cur_min >= 30:
+            next_analysis_time += one_hour
+
+        next_run_time = next_analysis_time
+        if self.dr_mode == 'dev':
+            next_run_time = get_aware_utc_now() + timedelta(seconds=15)
+
+        if self.dr_mode != 'manual':
+            self.core.schedule(next_run_time, self.publish_target_info,
+                               format_timestamp(next_analysis_time))
+
 
 def main(argv=sys.argv):
     '''Main method called by the eggsecutable.'''
