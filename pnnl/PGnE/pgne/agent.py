@@ -153,7 +153,7 @@ class PGnEAgent(Agent):
         # Use 15 days for safety of not having enough data after filtering out <0 and nan values
         # Support USFederalHoliday only, add custom holidays later (state, regional, etc.)
         cur_time_local = cur_time_utc.astimezone(self.local_tz)
-        start_time_local = cur_time_local - 15*self.bday_us
+        start_time_local = cur_time_local - 11*self.bday_us
         start_time_local = start_time_local.replace(
             hour=0, minute=0, second=0, microsecond=0)
 
@@ -171,7 +171,7 @@ class PGnEAgent(Agent):
             for day in parsed_exclude_days:
                 if day >= start_time_local:
                     cont = True
-                    start_time_local -= self.one_day
+                    start_time_local -= 1*self.bday_us
                     parsed_exclude_days.remove(day)
                     break
 
