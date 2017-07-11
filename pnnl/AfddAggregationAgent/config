@@ -1,0 +1,24 @@
+{
+    "campus": "PNNL",
+	"building": "SEB",
+	"unit": "AHU1",
+	"Airside_RCx": [
+	    "Duct Static Pressure Control Loop Dx",
+	    "Supply-air Temperature Control Loop Dx"
+    ],
+	"Economizer_RCx": [],
+
+    "tz": "US/Pacific",
+    "op_mode": "manual", #auto for real time, manual for testing with cur_time below
+    #"cur_time": "2016-03-17 00:00:00", #manual only, auto uses real time
+    "cur_time": "2016-01-31 00:00:00", #manual only, auto uses real time
+    "min_num_points": 5, #minimum number of points required for analysis
+    "min_num_recs_daily": 3, # 3 hours last day
+    "min_num_recs_weekly": 48, # 2 days last week => 2 * 24 hours
+    "min_num_recs_monthly": 168, # 1 week last month => 7 * 24 hours
+
+    "p": 0.5,
+    "confidence": 0.95,
+
+    "debug_folder": "/home/ngoh511/PycharmProjects/volttron/applications/pnnl/AfddAggregationAgent/"
+}
