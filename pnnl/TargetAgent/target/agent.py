@@ -88,10 +88,10 @@ class TargetAgent(Agent):
         self.local_tz = pytz.timezone(self.tz)
 
         # Bidding value
-        self.cbp = self.config.get('cbp', None)
-        if self.cbp is None:
+        self.cbps = self.config.get('cbp', None)
+        if self.cbps is None:
             raise "CBP values are required"
-        if len(self.cbp)<24:
+        if len(self.cbps)<24:
             raise "CBP is required for every hour (i.e., 24 values)"
 
         #Occupancy
@@ -221,7 +221,7 @@ class TargetAgent(Agent):
 
         return event_info
 
-    def get_baseline_target(self, cur_time_utc, start_utc, end_utc, cbp):
+    def get_baseline_targets(self, cur_time_utc, start_utc, end_utc, cbp):
         """
         Get baseline value from PGNE agent
         Returns:
@@ -245,11 +245,10 @@ class TargetAgent(Agent):
             prediction1 = float(values["value_hr1"])
             prediction2 = float(values["value_hr2"])
             #baseline_target = (prediction1+prediction2)/2.0
-            baseline_target = prediction1
-            baseline_target -= cbp
+            baseline_target = [prediction1-x for x in cbp]
+            #baseline_target -= cbp
         return baseline_target
 
-    @RPC.export('get_target_info')
     def get_target_info(self, in_time, in_tz):
         """
         Combine event start, end, and baseline target
@@ -294,32 +293,51 @@ class TargetAgent(Agent):
                 # Decide cpb value
                 cur_time_local = cur_time_utc.astimezone(self.local_tz)
                 cbp_idx = cur_time_local.hour + 1  # +1 for next hour
-                cbp = self.cbp[cbp_idx]
+                cbps = self.cbps[cbp_idx]
                 if cur_time_utc > end_utc:
-                    cbp = 0
+                    cbps = [0,0,0,0]
 
                 # Calculate baseline target
-                baseline_target = self.get_baseline_target(
-                    cur_time_utc, start_utc, end_utc, cbp
+                baseline_targets = self.get_baseline_targets(
+                    cur_time_utc, start_utc, end_utc, cbps
                 )
 
                 # Package output
-                if baseline_target is not None:
-                    meta = {'type': 'float', 'tz': 'UTC', 'units': 'kW'}
-                    time_meta = {'type': 'datetime', 'tz': 'UTC', 'units': 'datetime'}
-                    target_info = [{
-                        "id": format_timestamp(next_hour_utc),
-                        "start": format_timestamp(next_hour_utc),
-                        "end": format_timestamp(next_hour_end),
-                        "target": baseline_target,
-                        "cbp": cbp
-                    }, {
-                        "id": time_meta,
-                        "start": time_meta,
-                        "end": time_meta,
-                        "target": meta,
-                        "cbp": meta
-                    }]
+                if baseline_targets is not None:
+                    #meta = {'type': 'float', 'tz': 'UTC', 'units': 'kW'}
+                    #time_meta = {'type': 'datetime', 'tz': 'UTC', 'units': 'datetime'}
+                    # target_info = [{
+                    #     "id": format_timestamp(next_hour_utc),
+                    #     "start": format_timestamp(next_hour_utc),
+                    #     "end": format_timestamp(next_hour_end),
+                    #     "target": baseline_target,
+                    #     "cbp": cbp
+                    # }, {
+                    #     "id": time_meta,
+                    #     "start": time_meta,
+                    #     "end": time_meta,
+                    #     "target": meta,
+                    #     "cbp": meta
+                    # }]
+                    meta2 = {'type': 'string', 'tz': 'UTC', 'units': ''}
+                    delta = timedelta(minutes=0)
+                    for idx, cbp in enumerate(cbps):
+                        new_start = next_hour_utc + delta
+                        new_end = new_start + timedelta(minutes=15)
+                        new_target = baseline_targets[idx]
+                        target_info.append([{
+                            "value": {
+                                "id": format_timestamp(new_start),
+                                "start": format_timestamp(new_start),
+                                "end": format_timestamp(new_end),
+                                "target": new_target,
+                                "cbp": cbp
+                            }
+                        }, {
+                            "value": meta2
+                        }])
+                        delta += timedelta(minutes=15)
+
                 _log.debug(
                     "TargetAgent: At time (UTC) {ts}"
                     " TargetInfo is {ti}".format(ts=cur_time_utc,
@@ -334,15 +352,16 @@ class TargetAgent(Agent):
     def publish_target_info(self, cur_analysis_time_utc):
         cur_analysis_time_utc = parser.parse(cur_analysis_time_utc)
 
-        target_msg = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
-        if len(target_msg) > 0:
+        target_messages = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
+        if len(target_messages) > 0:
             headers = {'Date': format_timestamp(get_aware_utc_now())}
             target_topic = '/'.join(['analysis', 'target_agent', self.site, self.building, 'goal'])
-            self.vip.pubsub.publish(
-                'pubsub', target_topic, headers, target_msg).get(timeout=10)
-            _log.debug("TargetAgent {topic}: {value}".format(
-                topic=target_topic,
-                value=target_msg))
+            for target_message in target_messages:
+                self.vip.pubsub.publish(
+                    'pubsub', target_topic, headers, target_message).get(timeout=10)
+                _log.debug("TargetAgent {topic}: {value}".format(
+                    topic=target_topic,
+                    value=target_message))
 
         # Schedule next run at min 30 of next hour only if current min >= 30
         one_hour = timedelta(hours=1)

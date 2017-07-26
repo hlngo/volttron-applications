@@ -58,6 +58,7 @@
 import os
 import sys
 import logging
+import json
 from datetime import datetime, timedelta
 from dateutil import parser
 import pandas as pd
@@ -370,6 +371,23 @@ class PGnEAgent(Agent):
 
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
         self.save_4_debug(dq, 'data5a.csv')
+
+        df_26 = dq[-26:-2]
+        value = df_26['pow_avg'].to_json()
+        value = json.loads(value)
+        meta2 = {'type': 'string', 'tz': 'UTC', 'units': ''}
+        baseline_msg = [{
+            "value": value
+        }, {
+            "value": meta2
+        }]
+        headers = {'Date': format_timestamp(get_aware_utc_now())}
+        target_topic = '/'.join(['analysis', 'PGnE', self.site, self.building, 'baseline'])
+        self.vip.pubsub.publish(
+            'pubsub', target_topic, headers, baseline_msg).get(timeout=10)
+        _log.debug("TargetAgent {topic}: {value}".format(
+            topic=target_topic,
+            value=baseline_msg))
 
         # Adjusted average using high five outdoor temperature data based on 10 day moving windows
         if self.calc_mode == 1:
