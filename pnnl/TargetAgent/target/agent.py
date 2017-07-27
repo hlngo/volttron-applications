@@ -62,6 +62,7 @@ from datetime import datetime, timedelta
 import pytz
 import dateutil.tz
 from dateutil import parser
+import gevent
 
 from volttron.platform.vip.agent import Agent, Core, PubSub, RPC, compat
 from volttron.platform.agent import utils
@@ -354,14 +355,16 @@ class TargetAgent(Agent):
 
         target_messages = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
         if len(target_messages) > 0:
-            headers = {'Date': format_timestamp(get_aware_utc_now())}
+
             target_topic = '/'.join(['analysis', 'target_agent', self.site, self.building, 'goal'])
             for target_message in target_messages:
+                headers = {'Date': format_timestamp(get_aware_utc_now())}
                 self.vip.pubsub.publish(
-                    'pubsub', target_topic, headers, target_message).get(timeout=10)
+                    'pubsub', target_topic, headers, target_message).get(timeout=15)
                 _log.debug("TargetAgent {topic}: {value}".format(
                     topic=target_topic,
                     value=target_message))
+                gevent.sleep(15)
 
         # Schedule next run at min 30 of next hour only if current min >= 30
         one_hour = timedelta(hours=1)
