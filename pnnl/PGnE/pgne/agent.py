@@ -373,7 +373,7 @@ class PGnEAgent(Agent):
         self.save_4_debug(dq, 'data5a.csv')
 
         df_26 = dq[-26:-2]
-        value = df_26['pow_avg'].to_json()
+        value = df_26['pow_adj_avg'].to_json()
         value = json.loads(value)
         meta2 = {'type': 'string', 'tz': 'UTC', 'units': ''}
         baseline_msg = [{
