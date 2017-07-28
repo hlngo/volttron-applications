@@ -222,7 +222,7 @@ class TargetAgent(Agent):
 
         return event_info
 
-    def get_baseline_targets(self, cur_time_utc, start_utc, end_utc, cbp):
+    def get_baseline_targets(self, cur_time_utc, start_utc, end_utc, cbps):
         """
         Get baseline value from PGNE agent
         Returns:
@@ -246,8 +246,12 @@ class TargetAgent(Agent):
             prediction1 = float(values["value_hr1"])
             prediction2 = float(values["value_hr2"])
             #baseline_target = (prediction1+prediction2)/2.0
-            baseline_target = [prediction1-x for x in cbp]
-            #baseline_target -= cbp
+            #baseline_target = [prediction1-x for x in cbp]
+            delta = (prediction2 - prediction1) / float(len(cbps)-1)
+            baseline_target = []
+            for index, cbp in enumerate(cbps):
+                baseline_target.append(prediction1+index*delta - cbp)
+
         return baseline_target
 
     def get_target_info(self, in_time, in_tz):
