@@ -372,9 +372,9 @@ class PGnEAgent(Agent):
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
         self.save_4_debug(dq, 'data5a.csv')
 
-        df_26 = dq[-26:-2]
-        df_26 = df_26.tz_localize(self.local_tz).tz_convert(pytz.utc)
-        value = df_26['pow_adj_avg'].to_json()
+        df_24 = dq[-24:]
+        df_24 = df_24.tz_localize(self.local_tz).tz_convert(pytz.utc)
+        value = df_24['pow_adj_avg'].to_json()
         value = json.loads(value)
         meta2 = {'type': 'string', 'tz': 'UTC', 'units': ''}
         baseline_msg = [{
@@ -386,7 +386,7 @@ class PGnEAgent(Agent):
         target_topic = '/'.join(['analysis', 'PGnE', self.site, self.building, 'baseline'])
         self.vip.pubsub.publish(
             'pubsub', target_topic, headers, baseline_msg).get(timeout=10)
-        _log.debug("TargetAgent {topic}: {value}".format(
+        _log.debug("PGnE {topic}: {value}".format(
             topic=target_topic,
             value=baseline_msg))
 
