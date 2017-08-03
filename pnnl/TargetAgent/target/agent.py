@@ -247,7 +247,7 @@ class TargetAgent(Agent):
             prediction2 = float(values["value_hr2"])
             #baseline_target = (prediction1+prediction2)/2.0
             #baseline_target = [prediction1-x for x in cbp]
-            delta = (prediction2 - prediction1) / float(len(cbps)-1)
+            delta = (prediction2 - prediction1) / float(len(cbps))
             baseline_target = []
             for index, cbp in enumerate(cbps):
                 baseline_target.append(prediction1+index*delta - cbp)
@@ -297,10 +297,12 @@ class TargetAgent(Agent):
 
                 # Decide cpb value
                 cur_time_local = cur_time_utc.astimezone(self.local_tz)
-                cbp_idx = cur_time_local.hour + 1  # +1 for next hour
+                cbp_idx = cur_time_local.hour + 1
+                if cbp_idx > len(self.cbps):
+                    cbp_idx = 0
                 cbps = self.cbps[cbp_idx]
                 if cur_time_utc > end_utc:
-                    cbps = [0,0,0,0]
+                    cbps = [0, 0, 0, 0]
 
                 # Calculate baseline target
                 baseline_targets = self.get_baseline_targets(
