@@ -364,10 +364,20 @@ class PGnEAgent(Agent):
         dq.loc[dq['Adj'] < self.min_adj, 'Adj'] = self.min_adj
         dq.loc[dq['Adj'] > self.max_adj, 'Adj'] = self.max_adj
 
+        dq = dq.sort_index()
         #Filter out all data greater than event start time
-        naive_ev_start_local = event_start_local.replace(tzinfo=None)
-        if len(dq[dq.index >= naive_ev_start_local]) > 0:
-            dq['Adj'] = dq[dq.index >= naive_ev_start_local]['Adj'][0]
+        #naive_ev_start_local = event_start_local.replace(tzinfo=None)
+        #if len(dq[dq.index >= naive_ev_start_local]) > 0:
+        #    dq['Adj'] = dq[dq.index >= naive_ev_start_local]['Adj'][0]
+
+        #Need to change later for simulation
+        #cur_time = self.local_tz.localize(datetime.now())
+        #cur_time = cur_time.replace(hour=11, minute=59, second=0)
+        dq.loc[(dq.index.hour < 12) & (dq.index.day == 4), 'Adj'] = 1.12
+        dq.loc[(dq.index.hour >= 12) & (dq.index.day == 4), 'Adj'] = \
+            dq.loc[dq.index.hour == 12, 'Adj'][0]
+
+
 
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
         self.save_4_debug(dq, 'data5a.csv')

@@ -370,7 +370,7 @@ class TargetAgent(Agent):
                 _log.debug("TargetAgent {topic}: {value}".format(
                     topic=target_topic,
                     value=target_message))
-                gevent.sleep(15)
+                gevent.sleep(2)
 
         # Schedule next run at min 30 of next hour only if current min >= 30
         one_hour = timedelta(hours=1)
