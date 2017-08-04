@@ -58,6 +58,7 @@
 import os
 import sys
 import logging
+import json
 from datetime import datetime, timedelta
 from dateutil import parser
 import pandas as pd
@@ -363,13 +364,41 @@ class PGnEAgent(Agent):
         dq.loc[dq['Adj'] < self.min_adj, 'Adj'] = self.min_adj
         dq.loc[dq['Adj'] > self.max_adj, 'Adj'] = self.max_adj
 
+        dq = dq.sort_index()
         #Filter out all data greater than event start time
-        naive_ev_start_local = event_start_local.replace(tzinfo=None)
-        if len(dq[dq.index >= naive_ev_start_local]) > 0:
-            dq['Adj'] = dq[dq.index >= naive_ev_start_local]['Adj'][0]
+        #naive_ev_start_local = event_start_local.replace(tzinfo=None)
+        #if len(dq[dq.index >= naive_ev_start_local]) > 0:
+        #    dq['Adj'] = dq[dq.index >= naive_ev_start_local]['Adj'][0]
+
+        #Need to change later for simulation
+        #cur_time = self.local_tz.localize(datetime.now())
+        #cur_time = cur_time.replace(hour=11, minute=59, second=0)
+        dq.loc[(dq.index.hour < 12) & (dq.index.day == 4), 'Adj'] = 1.12
+        dq.loc[(dq.index.hour >= 12) & (dq.index.day == 4), 'Adj'] = \
+            dq.loc[dq.index.hour == 12, 'Adj'][0]
+
+
 
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
         self.save_4_debug(dq, 'data5a.csv')
+
+        df_24 = dq[-24:]
+        df_24 = df_24.tz_localize(self.local_tz).tz_convert(pytz.utc)
+        value = df_24['pow_adj_avg'].to_json()
+        value = json.loads(value)
+        meta2 = {'type': 'string', 'tz': 'UTC', 'units': ''}
+        baseline_msg = [{
+            "value": value
+        }, {
+            "value": meta2
+        }]
+        headers = {'Date': format_timestamp(get_aware_utc_now())}
+        target_topic = '/'.join(['analysis', 'PGnE', self.site, self.building, 'baseline'])
+        self.vip.pubsub.publish(
+            'pubsub', target_topic, headers, baseline_msg).get(timeout=10)
+        _log.debug("PGnE {topic}: {value}".format(
+            topic=target_topic,
+            value=baseline_msg))
 
         # Adjusted average using high five outdoor temperature data based on 10 day moving windows
         if self.calc_mode == 1:
