@@ -12,5 +12,8 @@
     "calculation_mode": 0, #0: avg, 1: top5
 
     #optional for debug purpose
-    "debug_folder": "/home/ngoh511/PycharmProjects/volttron-applications/pnnl/PGnE/"
+    "debug_folder": "/home/ngoh511/PycharmProjects/volttron-applications/pnnl/PGnE/",
+
+    "manual_set_adj_value": false,
+    "fix_adj_value": 1.26
 }

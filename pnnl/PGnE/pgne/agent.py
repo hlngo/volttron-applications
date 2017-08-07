@@ -92,6 +92,8 @@ class PGnEAgent(Agent):
         self.aggregate_freq = str(self.aggregate_in_min) + 'Min'
         self.ts_name = self.config.get('ts_name')
         self.calc_mode = self.config.get('calculation_mode', 0)
+        self.manual_set_adj_value = self.config.get('manual_set_adj_value', False)
+        self.fix_adj_value = self.config.get('fix_adj_value', 1.26)
 
         self.tz = self.config.get('tz')
         self.local_tz = pytz.timezone(self.tz)
@@ -250,19 +252,24 @@ class PGnEAgent(Agent):
             #self.publish_baseline(result_df, cur_time_utc)
             last_idx = len(result_df.index) - 1
             sec_last_idx = last_idx - 1
+
             # use adj avg for 10 day
             # value_hr1 hr2 ex: 13:00 14:00 respectively
             _log.debug("PGnEAgent: Building baseline values message")
-            value_hr1 = result_df['pow_adj_avg'][sec_last_idx]
+            value_hr0 = result_df['pow_adj_avg'][last_idx-2]
+            value_hr1 = result_df['pow_adj_avg'][last_idx-1]
             value_hr2 = result_df['pow_adj_avg'][last_idx]
             if self.calc_mode == 1:
-                value_hr1 = result_df['hot5_pow_adj_avg'][sec_last_idx]
+                value_hr0 = result_df['hot5_pow_adj_avg'][last_idx-2]
+                value_hr1 = result_df['hot5_pow_adj_avg'][last_idx-1]
                 value_hr2 = result_df['hot5_pow_adj_avg'][last_idx]
             meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
             baseline_values = [{
-                "value_hr1": value_hr1,
-                "value_hr2": value_hr2
+                "value_hr0": value_hr0, #next hour
+                "value_hr1": value_hr1, #next hour + 1
+                "value_hr2": value_hr2  #next hour + 2
             }, {
+                "value_hr0": meta,
                 "value_hr1": meta,
                 "value_hr2": meta
             }]
@@ -373,9 +380,13 @@ class PGnEAgent(Agent):
         #Need to change later for simulation
         #cur_time = self.local_tz.localize(datetime.now())
         #cur_time = cur_time.replace(hour=11, minute=59, second=0)
-        dq.loc[(dq.index.hour < 12) & (dq.index.day == 4), 'Adj'] = 1.12
-        dq.loc[(dq.index.hour >= 12) & (dq.index.day == 4), 'Adj'] = \
-            dq.loc[dq.index.hour == 12, 'Adj'][0]
+        #Aug 4 fix
+        # dq.loc[(dq.index.hour < 12) & (dq.index.day == 4), 'Adj'] = 1.12
+        # dq.loc[(dq.index.hour >= 12) & (dq.index.day == 4), 'Adj'] = \
+        #     dq.loc[dq.index.hour == 12, 'Adj'][0]
+        #Aug 7 test
+        if self.manual_set_adj_value:
+            dq['Adj'] = self.fix_adj_value
 
 
 

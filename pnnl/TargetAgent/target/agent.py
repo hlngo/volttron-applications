@@ -243,14 +243,21 @@ class TargetAgent(Agent):
 
         if len(message) > 0:
             values = message[0]
-            prediction1 = float(values["value_hr1"])
-            prediction2 = float(values["value_hr2"])
+            prediction0 = float(values["value_hr0"]) #next hour
+            prediction1 = float(values["value_hr1"]) #next hour+1
+            prediction2 = float(values["value_hr2"]) #next hour+2
             #baseline_target = (prediction1+prediction2)/2.0
             #baseline_target = [prediction1-x for x in cbp]
-            delta = (prediction2 - prediction1) / float(len(cbps))
+            #Approach after 07/31
+            # delta = (prediction2 - prediction1) / float(len(cbps))
+            # baseline_target = []
+            # for index, cbp in enumerate(cbps):
+            #     baseline_target.append(prediction1+index*delta - cbp)
+            #Approach after Aug6
+            delta = (prediction1 - prediction0) / float(len(cbps))
             baseline_target = []
             for index, cbp in enumerate(cbps):
-                baseline_target.append(prediction1+index*delta - cbp)
+                baseline_target.append(prediction0 + index * delta - cbp)
 
         return baseline_target
 
@@ -330,7 +337,7 @@ class TargetAgent(Agent):
                     delta = timedelta(minutes=0)
                     for idx, cbp in enumerate(cbps):
                         new_start = next_hour_utc + delta
-                        new_end = new_start + timedelta(minutes=15)
+                        new_end = new_start + timedelta(minutes=14, seconds=59)
                         new_target = baseline_targets[idx]
                         target_info.append([{
                             "value": {
