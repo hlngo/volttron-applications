@@ -3,6 +3,8 @@
 	"building": "350_BUILDING",
     "tz": "US/Pacific",
 
+    "wbe_file": "/home/ngoh511/PycharmProjects/volttron-applications/pnnl/TargetAgent/wbe.csv",
+
     # dr_mode:
     #   - dev mode for development only
     #   - manual for simulation

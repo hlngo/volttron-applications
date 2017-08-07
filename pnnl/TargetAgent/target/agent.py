@@ -63,6 +63,8 @@ import pytz
 import dateutil.tz
 from dateutil import parser
 import gevent
+from time import mktime
+import csv
 
 from volttron.platform.vip.agent import Agent, Core, PubSub, RPC, compat
 from volttron.platform.agent import utils
@@ -83,6 +85,7 @@ class TargetAgent(Agent):
         # Building info
         self.site = self.config.get('campus')
         self.building = self.config.get('building')
+        self.wbe_csv = self.config.get('wbe_file')
 
         # Local timezone
         self.tz = self.config.get('tz')
@@ -257,11 +260,139 @@ class TargetAgent(Agent):
             delta = (prediction1 - prediction0) / float(len(cbps))
             baseline_target = []
             for index, cbp in enumerate(cbps):
-                baseline_target.append(prediction0 + index * delta - cbp)
+                #baseline_target.append(prediction0 + index * delta - cbp)
+                baseline_target.append(prediction1)
 
         return baseline_target
 
     def get_target_info(self, in_time, in_tz):
+        """
+        Combine event start, end, and baseline target
+        Inputs:
+            in_time: string cur_time
+            in_tz: string timezone
+        Returns:
+            A dictionary of start, end datetime and baseline target
+        """
+        target_info = []
+        event_info = self.get_event_info()
+        _log.debug("TargetAgent: event info length is " +
+                   str(len(event_info.keys())))
+        if len(event_info.keys()) > 0:
+            start = event_info['start']
+            end = event_info['end']
+            _log.debug('TargetAgent: EventInfo '
+                       'Start: {start} End: {end} '.format(start=start,
+                                                           end=end))
+            cur_time = parser.parse(in_time)
+            if cur_time.tzinfo is None:
+                tz = pytz.timezone(in_tz)
+                cur_time = tz.localize(cur_time)
+
+            # Convert to UTC before doing any processing
+            start_utc = start.astimezone(pytz.utc)
+            end_utc = end.astimezone(pytz.utc)
+            cur_time_utc = cur_time.astimezone(pytz.utc)
+            one_hour = timedelta(hours=1)
+            start_utc_prev_hr = start_utc - one_hour
+            end_utc_prev_hr = end_utc - one_hour
+
+            # Use occupancy time if cont_after_dr is enabled
+            if self.cont_after_dr == 'yes':
+                end_utc_prev_hr = self.occ_time_utc - one_hour
+
+            if start_utc_prev_hr <= cur_time_utc < end_utc_prev_hr:
+                next_hour_utc = \
+                    cur_time_utc.replace(minute=0, second=0, microsecond=0) + one_hour
+                next_hour_end = next_hour_utc.replace(minute=59, second=59)
+
+                # Decide cpb value
+                cur_time_local = cur_time_utc.astimezone(self.local_tz)
+                cbp_idx = cur_time_local.hour + 1
+                if cbp_idx > len(self.cbps):
+                    cbp_idx = 0
+                cbps = self.cbps[cbp_idx]
+                if cur_time_utc > end_utc:
+                    cbps = [0, 0, 0, 0]
+
+                ####### Calculate baseline target
+                baseline = []
+                with open(self.wbe_csv, 'rb') as csvfile:
+                    reader = csv.reader(csvfile, delimiter=',')
+                    for row in reader:
+                        wbe_ts = parser.parse(row[0])
+                        if wbe_ts.year == cur_time_local.year \
+                                and wbe_ts.month == cur_time_local.month \
+                                and wbe_ts.day == cur_time_local.day:
+                            baseline = row[1:]
+                            break
+                baseline = [float(i) for i in baseline]
+
+                value = {}
+                meta2 = {'type': 'string', 'tz': 'UTC', 'units': ''}
+                for i in range(0, 24):
+                    ts = cur_time_local.replace(hour=i, minute=0, second=0)
+                    ts_epoch = mktime(ts.timetuple())*1000
+                    value[ts_epoch] = baseline[i]
+                baseline_msg = [{
+                    "value": value
+                }, {
+                    "value": meta2
+                }]
+                headers = {'Date': format_timestamp(get_aware_utc_now())}
+                target_topic = '/'.join(['analysis', 'PGnE', self.site, self.building, 'baseline'])
+                self.vip.pubsub.publish(
+                    'pubsub', target_topic, headers, baseline_msg).get(timeout=10)
+                _log.debug("PGnE {topic}: {value}".format(
+                    topic=target_topic,
+                    value=baseline_msg))
+
+                meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
+                idx = cur_time_local.hour
+                next_hr_baseline = baseline[idx+1]
+                cur_idx = idx
+                cur_hr_baseline = baseline[cur_idx]
+
+                delta = (next_hr_baseline - cur_hr_baseline) / float(len(cbps))
+                baseline_targets = []
+                for index, cbp in enumerate(cbps):
+                    baseline_targets.append(cur_hr_baseline + index * delta - cbp)
+
+                ######End target calculation
+
+                # Package output
+                if baseline_targets is not None:
+                    meta2 = {'type': 'string', 'tz': 'UTC', 'units': ''}
+                    delta = timedelta(minutes=0)
+                    for idx, cbp in enumerate(cbps):
+                        new_start = next_hour_utc + delta
+                        new_end = new_start + timedelta(minutes=14, seconds=59)
+                        new_target = baseline_targets[idx]
+                        target_info.append([{
+                            "value": {
+                                "id": format_timestamp(new_start),
+                                "start": format_timestamp(new_start),
+                                "end": format_timestamp(new_end),
+                                "target": new_target,
+                                "cbp": cbp
+                            }
+                        }, {
+                            "value": meta2
+                        }])
+                        delta += timedelta(minutes=15)
+
+                _log.debug(
+                    "TargetAgent: At time (UTC) {ts}"
+                    " TargetInfo is {ti}".format(ts=cur_time_utc,
+                                                 ti=target_info))
+            else:
+                _log.debug('TargetAgent: Not in event time frame'
+                           ' {start} {cur} {end}'.format(start=start_utc_prev_hr,
+                                                         cur=cur_time_utc,
+                                                         end=end_utc_prev_hr))
+        return target_info
+
+    def get_target_info_pgne(self, in_time, in_tz):
         """
         Combine event start, end, and baseline target
         Inputs:
@@ -364,6 +495,39 @@ class TargetAgent(Agent):
         return target_info
 
     def publish_target_info(self, cur_analysis_time_utc):
+        cur_analysis_time_utc = parser.parse(cur_analysis_time_utc)
+
+        target_messages = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
+        if len(target_messages) > 0:
+
+            target_topic = '/'.join(['analysis', 'target_agent', self.site, self.building, 'goal'])
+            for target_message in target_messages:
+                headers = {'Date': format_timestamp(get_aware_utc_now())}
+                self.vip.pubsub.publish(
+                    'pubsub', target_topic, headers, target_message).get(timeout=15)
+                _log.debug("TargetAgent {topic}: {value}".format(
+                    topic=target_topic,
+                    value=target_message))
+                gevent.sleep(2)
+
+        # Schedule next run at min 30 of next hour only if current min >= 30
+        one_hour = timedelta(hours=1)
+        cur_min = cur_analysis_time_utc.minute
+        next_analysis_time = cur_analysis_time_utc.replace(minute=30,
+                                                           second=0,
+                                                           microsecond=0)
+        if cur_min >= 30:
+            next_analysis_time += one_hour
+
+        next_run_time = next_analysis_time
+        if self.dr_mode == 'dev':
+            next_run_time = get_aware_utc_now() + timedelta(seconds=15)
+
+        if self.dr_mode != 'manual':
+            self.core.schedule(next_run_time, self.publish_target_info,
+                               format_timestamp(next_analysis_time))
+
+    def publish_target_info_pgne(self, cur_analysis_time_utc):
         cur_analysis_time_utc = parser.parse(cur_analysis_time_utc)
 
         target_messages = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
