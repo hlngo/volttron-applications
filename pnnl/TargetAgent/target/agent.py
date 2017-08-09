@@ -309,7 +309,7 @@ class TargetAgent(Agent):
                 # Decide cpb value
                 cur_time_local = cur_time_utc.astimezone(self.local_tz)
                 cbp_idx = cur_time_local.hour + 1
-                if cbp_idx > len(self.cbps):
+                if cbp_idx >= len(self.cbps):
                     cbp_idx = 0
                 cbps = self.cbps[cbp_idx]
                 if cur_time_utc > end_utc:
@@ -349,7 +349,10 @@ class TargetAgent(Agent):
 
                 meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
                 idx = cur_time_local.hour
-                next_hr_baseline = baseline[idx+1]
+                next_idx = idx+1
+                if next_idx >= len(baseline):
+                    next_idx = idx
+                next_hr_baseline = baseline[next_idx]
                 cur_idx = idx
                 cur_hr_baseline = baseline[cur_idx]
 
@@ -436,7 +439,7 @@ class TargetAgent(Agent):
                 # Decide cpb value
                 cur_time_local = cur_time_utc.astimezone(self.local_tz)
                 cbp_idx = cur_time_local.hour + 1
-                if cbp_idx > len(self.cbps):
+                if cbp_idx >= len(self.cbps):
                     cbp_idx = 0
                 cbps = self.cbps[cbp_idx]
                 if cur_time_utc > end_utc:
