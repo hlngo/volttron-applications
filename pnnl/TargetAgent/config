@@ -12,13 +12,13 @@
     #   - open_adr to get event start and end time from openADR
     # cur_time is only used in manual_mode (simulation)
     "dr_mode": "manual",
-    "start_time": "2017-05-30 06:00:00",
-    "end_time": "2017-05-30 17:00:00",
-    "cur_time": "2017-05-30 14:05:00", #manual only, auto uses real time
+    "start_time": "2017-08-01 06:00:00",
+    "end_time": "2017-08-10 17:00:00",
+    "cur_time": "2017-08-10 00:28:49", #manual only, auto uses real time
 
     #continute publishing target value after dr event
     "cont_after_dr": "yes",
-    "occ_time": "2017-05-30 18:00:00",
+    "occ_time": "2017-08-12 18:00:00",
 
     #DR days that will be excluded from baseline calculation
     "dr_days": [],

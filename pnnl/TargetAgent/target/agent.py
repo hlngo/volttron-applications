@@ -499,19 +499,21 @@ class TargetAgent(Agent):
 
     def publish_target_info(self, cur_analysis_time_utc):
         cur_analysis_time_utc = parser.parse(cur_analysis_time_utc)
+        try:
+            target_messages = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
+            if len(target_messages) > 0:
 
-        target_messages = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
-        if len(target_messages) > 0:
-
-            target_topic = '/'.join(['analysis', 'target_agent', self.site, self.building, 'goal'])
-            for target_message in target_messages:
-                headers = {'Date': format_timestamp(get_aware_utc_now())}
-                self.vip.pubsub.publish(
-                    'pubsub', target_topic, headers, target_message).get(timeout=15)
-                _log.debug("TargetAgent {topic}: {value}".format(
-                    topic=target_topic,
-                    value=target_message))
-                gevent.sleep(2)
+                target_topic = '/'.join(['analysis', 'target_agent', self.site, self.building, 'goal'])
+                for target_message in target_messages:
+                    headers = {'Date': format_timestamp(get_aware_utc_now())}
+                    self.vip.pubsub.publish(
+                        'pubsub', target_topic, headers, target_message).get(timeout=15)
+                    _log.debug("TargetAgent {topic}: {value}".format(
+                        topic=target_topic,
+                        value=target_message))
+                    gevent.sleep(2)
+        except Exception as e:
+            _log.error("TargetAgent: Exception " + str(e))
 
         # Schedule next run at min 30 of next hour only if current min >= 30
         one_hour = timedelta(hours=1)
@@ -569,7 +571,7 @@ def main(argv=sys.argv):
     try:
         utils.vip_main(TargetAgent)
     except Exception as e:
-        _log.exception('unhandled exception')
+        _log.exception('unhandled exception ' + str(e))
 
 if __name__ == '__main__':
     # Entry point for script
