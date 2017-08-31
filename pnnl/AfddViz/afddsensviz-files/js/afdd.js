@@ -1269,15 +1269,117 @@ $(function() {
         $('#afdd-body').hide();
     }
 
+    function find_arr_item_by_name(arr, itemName) {
+        var item = null;
+        for (i = 0; i < arr.length; i++) {
+            if (arr[i]['name'] === itemName) {
+                item = arr[i];
+                break;
+            }
+        }
+        return item;
+    }
+
+    function find_arr_item(arr, itemName) {
+        var item = null;
+        for (i = 0; i < arr.length; i++) {
+            if (arr[i] === itemName) {
+                item = arr[i];
+                break;
+            }
+        }
+        return item;
+    }
+
+    function query_topics() {
+        var air_rcx_prefix = [prefix, air_rcx].join('/');
+        var econ_rcx_prefix = [prefix, econ_rcx].join('/');
+        var token = $('#token').val();
+        var post_data = {
+            jsonrpc: '2.0',
+            method: 'platform.historian.get_topic_list',
+            authorization: token,
+            id: req_id
+        };
+        $.ajax({
+                type: 'POST',
+                url: vc_server + '/jsonrpc',
+                data: JSON.stringify(post_data),
+                dataType: 'json',
+                success: function(data){
+                    if (data.hasOwnProperty('result')) {
+                        var siteDetails = [];
+                        $.each(data['result'], function (key, value) {
+                            if (value.startsWith(econ_rcx_prefix)
+                                || value.startsWith(air_rcx_prefix)) {
+                                console.log(value);
+                                var start_idx = 0;
+                                if (prefix != '') {
+                                    start_idx = 1;
+                                }
+                                topic_parts = value.split('/');
+                                var appName = topic_parts[start_idx];
+                                var siteName = topic_parts[start_idx+1];
+                                var buildingName = topic_parts[start_idx+2];
+                                var deviceName = topic_parts[start_idx+3];
+                                var algoName = topic_parts[start_idx+4];
+
+                                var site = find_arr_item_by_name(siteDetails, siteName);
+                                if (site == null) {
+                                    site = {
+                                        'name': siteName,
+                                        'buildings': []
+                                    }
+                                    siteDetails.push(site);
+                                }
+                                var building = find_arr_item_by_name(site['buildings'], buildingName);
+                                if (building == null) {
+                                    building = {
+                                        'name': buildingName,
+                                        'devices': []
+                                    }
+                                    site['buildings'].push(building);
+                                }
+                                var device = find_arr_item_by_name(building['devices'], deviceName);
+                                if (device == null) {
+                                    device = {
+                                        'name': deviceName,
+                                        'dx': []
+                                    }
+                                    building['devices'].push(device);
+                                }
+                                var dx = find_arr_item(device['dx'], appName);
+                                if (dx == null) {
+                                    device['dx'].push(appName);
+                                }
+                            }
+                        });
+                        siteObjs = siteDetails;
+                    }
+                },
+                error: function (jqXHR, textStatus) {
+                    console.log("Ajax loading failed: " + textStatus);
+                },
+                complete: function () {
+                    var sites = [];
+                    siteObjs.forEach(function(siteObj){
+                        sites.push(siteObj.name);
+                    });
+                    setSelectOptions(sites, 'site');
+                    $("body").removeClass("loading");
+                }
+            });
+
+
+    }
+
+
     function start_diagnostic() {
         $('#login-form').hide();
         $('#afdd-body').show();
+        $("body").addClass("loading");
         //Behaviours
-        var sites = [];
-        siteObjs.forEach(function(siteObj){
-            sites.push(siteObj.name)
-        })
-        setSelectOptions(sites, 'site');
+        query_topics();
     }
 
     //Event processing
@@ -1336,7 +1438,7 @@ $(function() {
         var buildings = [];
         var siteName = $("#site").val();
         var siteObj = getItem(siteObjs, siteName);
-        var buildingObjs = siteObj.buildings
+        var buildingObjs = siteObj.buildings;
         buildingObjs.forEach(function(buildingObj){
             buildings.push(buildingObj.name)
         })
@@ -1350,7 +1452,7 @@ $(function() {
         var buildingObj = getItem(siteObj.buildings, buildingName);
         var deviceObjs = buildingObj.devices
         deviceObjs.forEach(function(d){
-            devices.push(d.name)
+            devices.push(d.name);
         })
         setSelectOptions(devices, 'device');
     }));
