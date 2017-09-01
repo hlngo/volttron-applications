@@ -279,7 +279,7 @@ $(function() {
         "25.1": "RED", //"The duct static pressure has been detected to be too high but but the supply fan is running at minimum speed.",
         "30": "GREEN", //"No problems detected.",
         "31.1": "RED", //"The SAT is significantly deviating from its set point.",
-        "22.2": "GREY", //"Supply-air temperature set point data is not available.  The Set Point Control Loop Diagnostic requires set point data.",
+        "32.2": "GREY", //"Supply-air temperature set point data is not available.  The Set Point Control Loop Diagnostic requires set point data.",
         "40": "GREEN", //"No re-tuning opportunity was detected during the low supply-air temperature diagnostic.",
         "41.1": "RED", //"The supply-air temperature was detected to be too low (with autocorrection).",
         "42.1": "RED", //"The supply-air temperature was detected to be too low but it is at the maximum configured value.",
@@ -359,7 +359,7 @@ $(function() {
         "25.1": "The duct static pressure has been detected to be too high but but the supply fan is running at minimum speed.",
         "30": "No problems detected.",
         "31.1": "The SAT is significantly deviating from its set point.",
-        "22.2": "Supply-air temperature set point data is not available.  The Set Point Control Loop Diagnostic requires set point data.",
+        "32.2": "Supply-air temperature set point data is not available.  The Set Point Control Loop Diagnostic requires set point data.",
         "40": "No re-tuning opportunity was detected during the low supply-air temperature diagnostic.",
         "41.1": "The supply-air temperature was detected to be too low (with autocorrection).",
         "42.1": "The supply-air temperature was detected to be too low but it is at the maximum configured value.",
@@ -1230,7 +1230,7 @@ $(function() {
                             newItem['error_code'] = err_code;
                             newItem['color_code'] = color_codes[dx][err_code];
                             newItem['diagnostic_message'] = error_messages[dx][err_code];
-                            var ei_topic = [dx,site,building,device,algo,'energy impact'].join('/');
+                            var ei_topic = [prefix,dx,site,building,device,algo,'energy impact'].join('/');
                             if (preCacheData.hasOwnProperty(ei_topic)) {
                                 for (; curEIPointer < preCacheData[ei_topic].length; curEIPointer++)
                                 {
@@ -1472,6 +1472,8 @@ $(function() {
         var path = getSelectOptions().join(cacheDataPathSep);
         uiResultLoading();
         checkCacheData = setInterval(function () {
+            cacheData = {};
+            updatePendingRequests();
             uiResultLoaded(cacheData[path]);
             clearInterval(checkCacheData);
         }, 200);
@@ -1492,4 +1494,14 @@ $(function() {
 //        ajaxStop: function() { $body.removeClass("loading"); }
 //    });
 });
+//TODO:
+//Query all the data to the CSV to compare all three sensitive levels
+//
+//
+//Round up to 1 digit after decimal point for dx message
+//
+//
+//Check with Craig & update the data pulling code for Woohyun
+//
+//Sort the combobox names
 
