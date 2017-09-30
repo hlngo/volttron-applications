@@ -24,182 +24,7 @@ $(function() {
     points_available[econ_rcx] = ['diagnostic message', 'energy impact'];
     points_available[air_rcx] = ['diagnostic message'];
 
-    var siteObjs = [{
-        'name': 'PNNL',
-        buildings: [
-        {
-            'name': 'SEB',
-            'devices': [{
-                'name': 'AHU1',
-                'dx': [econ_rcx, air_rcx]
-            }, {
-                'name': 'AHU2',
-                'dx': [econ_rcx, air_rcx]
-            }, {
-                'name': 'AHU3',
-                'dx': [econ_rcx, air_rcx]
-            }, {
-                'name': 'AHU4',
-                'dx': [econ_rcx, air_rcx]
-        }]},
-        {
-            'name': 'BUILDING3',
-            'devices': [{
-                'name': 'INTERIOR_AHU',
-                'dx': [econ_rcx, air_rcx]
-        }]
-        },
-        {
-            'name': 'BUILDING4',
-            'devices': [{
-                'name': 'RTU3',
-                'dx': [econ_rcx, air_rcx]
-            }, {
-                'name': 'RTU4',
-                'dx': [econ_rcx, air_rcx]
-            }, {
-                'name': 'RTU5',
-                'dx': [econ_rcx, air_rcx]
-        }]},
-        {
-            'name': 'BUILDING5',
-            'devices': [{
-                'name': 'INTERIOR_AHU',
-                'dx': [econ_rcx, air_rcx]
-        }]},
-        {
-            'name': 'BUILDING6',
-            'devices': [{
-                'name': 'HP1',
-                'dx': [econ_rcx, air_rcx]
-            }, {
-                'name': 'HP2',
-                'dx': [econ_rcx, air_rcx]
-            }, {
-                'name': 'HP3',
-                'dx': [econ_rcx, air_rcx]
-            }, {
-                'name': 'HP4',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP5',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP6',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP7',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP8',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP9',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP10',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP11',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-        }]},
-        {
-            'name': 'BUILDING7',
-            'devices': [{
-                'name': 'HP1',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP2',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP3',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP4',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP5',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-        }]},
-        {
-            'name': 'BUILDING8',
-            'devices': [{
-                'name': 'HP3',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP4',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP5',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP6',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP7',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-        }]},
-        {
-            'name': 'BUILDING9',
-            'devices': [{
-                'name': 'AHU6',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'AHU7',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'AHU8',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'AHU13',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'AHU20',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-        }]},
-        {
-            'name': 'BUILDING10',
-            'devices': [{
-                'name': 'HP1',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP2',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP3',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP4',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP5',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP6',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP7',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP8',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP9',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP10',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-            }, {
-                'name': 'HP11',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-        }]},
-        {
-            'name': 'BUILDING14',
-            'devices': [{
-                'name': 'AHU1',
-                'dx': ['Economizer_RCx', 'Airside_RCx']
-        }]}
-    ]}];
+    var siteObjs = [];
 
     var algo_set = {};
     algo_set[econ_rcx] = [
@@ -220,164 +45,83 @@ $(function() {
         'Operational Schedule Dx',
         'Supply-air Temperature Set Point Control Loop Dx'
     ];
-    var color_codes = {};
-    color_codes[econ_rcx] = {
-        "-1": "GREY", //"No Diagnosis",
-        "-99": "GREY", //"Supply fan is off, the diagnostic will only detect problems when the unit is operational.",
-        "-89": "GREY", //"The OAT and RAT are too close for a conclusive diagnostic result",
-        "-79": "GREY", //"The OAT sensor is outside the configured operating range.",
-        "-69": "GREY", //"The RAT sensor is outside the configured operating range.",
-        "-59": "GREY", //"The MAT sensor is outside the configured operating range.",
-        "-49": "GREY", //"A temperature sensor problem was detected.  The remainder of the diagnostics depend on temperature sensor measurements to produce accurate diagnostic results.",
-        "0": "GREEN", //"No problems detected.",
-        "0.1": "RED", //"The OAT and MAT sensor readings are not consistent when the outdoor-air damper is fully open.",
-        "1.1": "RED", //"A temperature sensor problem was detected the MAT sensor reading is less the the OAT and RAT sensor reading.",
-        "2.1": "RED", //"A temperature sensor problem was detected the MAT sensor reading is greater the the OAT and RAT sensor reading.",
-        "3.2": "GREY", //"The diagnostic resulted in an inconclusive result.",
-        "10": "GREEN", //"No problems detected.",
-        "11.1": "RED", //"Conditions are favorable for economizing but the OAD is frequently below 100% open.",
-        "12.1": "RED", //"The OAD is open for economizing but the OAF indicates the unit is not bringing in near 100% OA.",
-        "13.2": "GREY", //"The diagnostic resulted in an inconclusive result.",
-        "14.2": "GREY", //"The unit is not cooling: diagnostic detects problems when unit is in cooling mode.",
-        "15.2": "GREY", //"Conditions are not favorable for economizing: diagnostic detects problems when unit should be economizing.",
-        "20": "GREEN", //"No problems detected.",
-        "21.1": "RED", //"The OAD should be at the minimum position for ventilation but is significantly above that value.",
-        "23.2": "GREY", //"The diagnostic resulted in an inconclusive result.",
-        "25.2": "RED", //"Conditions are favorable for economizing: diagnostic detects problems when unit should not be economizing.",
-        "30": "GREEN", //"No problems detected.",
-        "31.2": "GREY", //"Inconclusive result: The OAF calculation led to an unexpected result.",
-        "32.1": "RED", //"The OAD should be at the minimum for ventilation but is significantly above that value.",
-        "33.1": "RED", //"Excess outdoor air is being provided.  This could significantly increase heating and cooling costs.",
-        "34.1": "RED", //"The OAD should be at the minimum for ventilation but is significantly above that value. Excess outdoor air is being provided; This could significantly increase heating and cooling costs.",
-        "35.2": "GREY", //"The diagnostic resulted in an inconclusive result.",
-        "36.2": "GREY", //"Conditions are favorable for economizing: diagnostic detects problems when unit should not be economizing.",
-        "40": "GREEN", //"No problems detected.",
-        "41.2": "GREY", //"Inconclusive result: The OAF calculation led to an unexpected result.",
-        "42.1": "RED", //"The OAD position is significantly below the minimum configured OAD position.",
-        "43.1": "RED", //"Insufficient OA for ventilation is being provided.",
-        "44.2": "GREY" //"The diagnostic resulted in an inconclusive result."
-    };
-    color_codes[air_rcx] = {
-        "-1": "GREY", //"No Diagnosis",
-        "-99": "GREY", //"Supply fan is off, the diagnostic will only detect problems when the unit is operational.",
-        "-89": "GREY", //"Inconsistent date for input data.",
-        "-79": "GREY", //"Insufficent input data for diagnostic.",
-        "0": "GREEN", //"No problems detected.",
-        "1.1": "RED", //"The duct static pressure is significantly deviating from its set point.",
-        "2.2": "GREY", //"Duct static pressure set point data is not available.  The Set Point Control Loop Diagnostic requires set point data.",
-        "10": "GREEN", //"No re-tuning opportunity was detected during the low duct static pressure diagnostic.",
-        "11.1": "RED", //"The duct static pressure was detected to be too low (with autocorrection).",
-        "12.1": "RED", //"The duct static pressure was detected to be too low but it is at the maximum configured value.",
-        "13.1": "RED", //"The duct static pressure was detected to be too low (autocorrection disabled).",
-        "14.1": "RED", //"The duct static pressure was detected to be too low but duct static pressure set point data is not available (cannot autocorrect).",
-        "15.1": "RED", //"The duct static pressure was detected to be too low but the supply fan is running at maximum speed.",
-        "20": "GREEN", //"No re-tuning opportunity was detected during the high duct static pressure diagnostic.",
-        "21.1": "RED", //"The duct static pressure was detected to be too high (with autocorrection). ",
-        "22.1": "RED", //"The duct static pressure was detected to be too high but its setpoint is at the minimum configured value.",
-        "23.1": "RED", //"The duct static pressure was detected to be too high (autocorrection disabled).",
-        "24.1": "RED", //"The duct static pressure has been detected to be too high but duct static pressure set point data is not available (cannot autocorrect).",
-        "25.1": "RED", //"The duct static pressure has been detected to be too high but but the supply fan is running at minimum speed.",
-        "30": "GREEN", //"No problems detected.",
-        "31.1": "RED", //"The SAT is significantly deviating from its set point.",
-        "32.2": "GREY", //"Supply-air temperature set point data is not available.  The Set Point Control Loop Diagnostic requires set point data.",
-        "40": "GREEN", //"No re-tuning opportunity was detected during the low supply-air temperature diagnostic.",
-        "41.1": "RED", //"The supply-air temperature was detected to be too low (with autocorrection).",
-        "42.1": "RED", //"The supply-air temperature was detected to be too low but it is at the maximum configured value.",
-        "43.1": "RED", //"The supply-air temperature has been detected to be too low but supply-air temperature set point data is not available (cannot autocorrect).",
-        "44.1": "RED", //"The supply air temperature was detected to be too low (autocorrection disabled).",
-        "50": "GREEN", //"No re-tuning opportunity was detected during the high supply-air temperature diagnostic.",
-        "51.1": "RED", //"The supply-air temperature was detected to be too high (with autocorrection).",
-        "52.1": "RED", //"The supply-air temperature was detected to be too high but it is at the minimum configured value.",
-        "53.1": "RED", //"The supply air temperature was detected to be too high (autocorrection disabled).",
-        "54.1": "RED", //"The supply-air temperature has been detected to be too high but supply-air temperature set point data is not available (cannot autocorrect).",
-        "60": "GREEN", //"No problems detected.",
-        "61.2": "GREY", //"Insufficient data for diagnostic.",
-        "63.1": "RED", //"The unit is ON a significant amount of time during unoccupied schedule",
-        "64.2": "GREY", //"The fan status shows the unit is off but the static pressure reading is high; verify the functionality of the pressure sensor.",
-        "70": "GREEN", //"No problems detected.",
-        "71.1": "RED", //"A duct static pressure reset was not detected.  Static pressure reset can save significant energy/money.",
-        "80": "GREEN", //"No problems detected.",
-        "81.1": "RED" //"A discharge-air temperature reset was not detected.  Discharge-air temperature reset can save significant energy/money."
-    };
     var error_messages = {};
     error_messages [econ_rcx] = {
-        "-1": "No Diagnosis",
-        "-99": "Supply fan is off, the diagnostic will only detect problems when the unit is operational.",
-        "-89": "The OAT and RAT are too close for a conclusive diagnostic result",
-        "-79": "The OAT sensor is outside the configured operating range.",
-        "-69": "The RAT sensor is outside the configured operating range.",
-        "-59": "The MAT sensor is outside the configured operating range.",
-        "-49": "A temperature sensor problem was detected.  The remainder of the diagnostics depend on temperature sensor measurements to produce accurate diagnostic results.",
-        "0": "No problems detected.",
-        "0.1": "The OAT and MAT sensor readings are not consistent when the outdoor-air damper is fully open.",
-        "1.1": "A temperature sensor problem was detected the MAT sensor reading is less the the OAT and RAT sensor reading.",
-        "2.1": "A temperature sensor problem was detected the MAT sensor reading is greater the the OAT and RAT sensor reading.",
-        "3.2": "The diagnostic resulted in an inconclusive result.",
-        "10": "No problems detected.",
-        "11.1": "Conditions are favorable for economizing but the OAD is frequently below 100% open.",
-        "12.1": "The OAD is open for economizing but the OAF indicates the unit is not bringing in near 100% OA.",
-        "13.2": "The diagnostic resulted in an inconclusive result.",
-        "14.2": "The unit is not cooling: diagnostic detects problems when unit is in cooling mode.",
-        "15.2": "Conditions are not favorable for economizing: diagnostic detects problems when unit should be economizing.",
-        "20": "No problems detected.",
-        "21.1": "The OAD should be at the minimum position for ventilation but is significantly above that value.",
-        "23.2": "The diagnostic resulted in an inconclusive result.",
-        "25.2": "Conditions are favorable for economizing: diagnostic detects problems when unit should not be economizing.",
-        "30": "No problems detected.",
-        "31.2": "Inconclusive result: The OAF calculation led to an unexpected result.",
-        "32.1": "The OAD should be at the minimum for ventilation but is significantly above that value.",
-        "33.1": "Excess outdoor air is being provided.  This could significantly increase heating and cooling costs.",
-        "34.1": "The OAD should be at the minimum for ventilation but is significantly above that value. Excess outdoor air is being provided; This could significantly increase heating and cooling costs.",
-        "35.2": "The diagnostic resulted in an inconclusive result.",
-        "36.2": "Conditions are favorable for economizing: diagnostic detects problems when unit should not be economizing.",
-        "40": "No problems detected.",
-        "41.2": "Inconclusive result: The OAF calculation led to an unexpected result.",
-        "42.1": "The OAD position is significantly below the minimum configured OAD position.",
-        "43.1": "Insufficient OA for ventilation is being provided.",
-        "44.2": "The diagnostic resulted in an inconclusive result."
+        "-1.0": "No Diagnosis",
+        "-99.3": "Supply fan of the air-handling/rooftop unit is off; therefore, potential faults with the unit cannot be detected at this time.",
+        "-89.2": "The outdoor-air and return-air temperatures are too close; therefore, a conclusive diagnostic result is not possible.",
+        "-79.2": "The outdoor-air temperature value is outside the normal limits.",
+        "-69.2": "The return-air temperature value is outside the normal limits.",
+        "-59.2": "The mixed-air temperature value is outside the normal limits.",
+        "-49.2": "A temperature sensor problem is detected; therefore, no other diagnostics are possible because all other diagnostics rely on accurate temperature sensing.",
+        "0.0": "No temperature problem with temperature sensors is detected.",
+        "0.1": "The outdoor-air and mixed-air temperature sensor readings are not consistent when the outdoor-air damper is fully open.",
+        "1.1": "The mixed-air temperature value is less than both the outdoor-air and return-air temperatures; therefore, there is a temperature sensor problem.",
+        "2.1": "The mixed-air temperature value is greater than both the outdoor-air and return-air temperatures; therefore, there is a temperature sensor problem.",
+        "3.2": "Inconsistent or missing data; therefore, potential opportunity for operational improvements cannot be detected at this time.",
+        "10.0": "The economizer is functioning as expected.",
+        "11.1": "The conditions are favorable for economizing but the outdoor-air damper is not fully open and the mechanical cooling is active.",
+        "12.1": "The outdoor-air damper is commanded to be fully open; however, the outdoor-air fraction is significantly lower than 100%.",
+        "13.2": "Inconsistent or missing data; therefore, potential opportunity for operational improvements cannot be detected at this time.",
+        "14.0": "The conditions are not favorable for running this diagnostic because cooling is not active.",
+        "15.0": "The conditions are not favorable for running this diagnostic because conditions are not favorable for economizing.",
+        "20.0": "The economizer is functioning as expected.",
+        "21.1": "The outdoor-air damper should be at the minimum position to meet the ventilation requirement, but it is significantly above that value.",
+        "23.2": "Inconsistent or missing data; therefore, potential opportunity for operational improvements cannot be detected at this time.",
+        "25.0": "The conditions are not favorable for running this diagnostic.",
+        "30.0": "The air-handling/rooftop unit is operating as expected.",
+        "31.2": "No conclusions can be drawn because outdoor-air fraction calculation is not reliable during this time period.",
+        "32.1": "The outdoor-air damper should be at the minimum position to meet the ventilation needs, but it is significantly above that value.",
+        "33.1": "The air-handling/rooftop unit is bringing in excess outdoor air; this will increase heating/cooling costs.",
+        "34.1": "The outdoor-air damper should be at the minimum position to meet the ventilation needs, but it is significantly above that value.  The air-handling/rooftop unit is bringing in excess outdoor air; this will increase heating/cooling costs.",
+        "35.2": "Inconsistent or missing data; therefore, potential opportunity for operational improvements cannot be detected at this time.",
+        "36.0": "The conditions are not favorable for running this diagnostic.",
+        "40.0": "The air-handling unit/rooftop unit is operating as expected.",
+        "41.2": "No conclusions can be drawn because outdoor-air fraction calculation is not reliable during this time period.",
+        "43.1": "The air-handling/rooftop unit is not providing adequate ventilation air based on the outdoor-air fraction.",
+        "44.2": "Inconsistent or missing data; therefore, potential opportunity for operational improvements cannot be detected at this time."
     };
     error_messages[air_rcx] = {
-        "-1": "No Diagnosis",
-        "-99": "Supply fan is off, the diagnostic will only detect problems when the unit is operational.",
-        "-89": "Inconsistent date for input data.",
-        "-89": "Inconsistent date for input data.",
-        "-79": "Insufficent input data for diagnostic.",
-        "0": "No problems detected.",
-        "1.1": "The duct static pressure is significantly deviating from its set point.",
-        "2.2": "Duct static pressure set point data is not available.  The Set Point Control Loop Diagnostic requires set point data.",
-        "10": "No re-tuning opportunity was detected during the low duct static pressure diagnostic.",
-        "11.1": "The duct static pressure was detected to be too low (with autocorrection).",
-        "12.1": "The duct static pressure was detected to be too low but it is at the maximum configured value.",
-        "13.1": "The duct static pressure was detected to be too low (autocorrection disabled).",
-        "14.1": "The duct static pressure was detected to be too low but duct static pressure set point data is not available (cannot autocorrect).",
-        "15.1": "The duct static pressure was detected to be too low but the supply fan is running at maximum speed.",
-        "20": "No re-tuning opportunity was detected during the high duct static pressure diagnostic.",
-        "21.1": "The duct static pressure was detected to be too high (with autocorrection). ",
-        "22.1": "The duct static pressure was detected to be too high but its setpoint is at the minimum configured value.",
-        "23.1": "The duct static pressure was detected to be too high (autocorrection disabled).",
-        "24.1": "The duct static pressure has been detected to be too high but duct static pressure set point data is not available (cannot autocorrect).",
-        "25.1": "The duct static pressure has been detected to be too high but but the supply fan is running at minimum speed.",
-        "30": "No problems detected.",
-        "31.1": "The SAT is significantly deviating from its set point.",
-        "32.2": "Supply-air temperature set point data is not available.  The Set Point Control Loop Diagnostic requires set point data.",
-        "40": "No re-tuning opportunity was detected during the low supply-air temperature diagnostic.",
-        "41.1": "The supply-air temperature was detected to be too low (with autocorrection).",
-        "42.1": "The supply-air temperature was detected to be too low but it is at the maximum configured value.",
-        "43.1": "The supply-air temperature has been detected to be too low but supply-air temperature set point data is not available (cannot autocorrect).",
-        "44.1": "The supply air temperature was detected to be too low (autocorrection disabled).",
-        "50": "No re-tuning opportunity was detected during the high supply-air temperature diagnostic.",
-        "51.1": "The supply-air temperature was detected to be too high (with autocorrection).",
-        "52.1": "The supply-air temperature was detected to be too high but it is at the minimum configured value.",
-        "53.1": "The supply air temperature was detected to be too high (autocorrection disabled).",
-        "54.1": "The supply-air temperature has been detected to be too high but supply-air temperature set point data is not available (cannot autocorrect).",
-        "60": "No problems detected.",
-        "61.2": "Insufficient data for diagnostic.",
-        "63.1": "The unit is ON a significant amount of time during unoccupied schedule",
-        "64.2": "The fan status shows the unit is off but the static pressure reading is high; verify the functionality of the pressure sensor.",
-        "70": "No problems detected.",
-        "71.1": "A duct static pressure reset was not detected.  Static pressure reset can save significant energy/money.",
-        "80": "No problems detected.",
-        "81.1": "A discharge-air temperature reset was not detected.  Discharge-air temperature reset can save significant energy/money."
+        "-1.0": "No Diagnosis",
+        "-99.3": "The air-handling unit’s supply fan is off; therefore, potential faults for this unit cannot be detected at this time.",
+        "-89.2": "Inconsistent or missing data; therefore, potential opportunity for operational improvements cannot be detected at this time.",
+        "-79.2": "There is insufficient data; therefore, potential opportunity for operational improvements cannot be detected at this time.",
+        "0.0": "The air-handling unit duct static set point controls are operating correctly.",
+        "1.1": "The air-handling unit duct static pressure is significantly different from the set point.",
+        "2.2": "The air-handling unit duct static pressure set point data is not available; therefore, this diagnostic cannot be run for this period.",
+        "10.0": "The air-handler duct static pressure is not low for this period.",
+        "11.1": "The air-handler duct static pressure is low; therefore, it may not be able to meet the zone airflow requirements (with auto-correction enabled).",
+        "12.1": "The air-hander duct static pressure is unable to meet the zone airflow requirements, while at the maximum set point value.",
+        "13.1": "The air-handler duct static pressure is low; therefore, it may not be able to meet the zone airflow requirements (with auto-correction disabled).",
+        "14.1": "The air-handler duct static pressure is low, but duct static pressure set point data is not available (cannot auto-correct).",
+        "15.1": "The air-handler duct static pressure is low, while the supply fan is running at maximum speed.",
+        "20.0": "The air-handler duct static pressure is not high for this period.",
+        "21.1": "The air-handler duct static pressure is high; this could lead to higher supply fan energy consumption and additional zone reheat (with auto-correction enabled).",
+        "22.1": "The air-hander duct static pressure is, while the set point value is at the minimum.",
+        "23.1": "The air-handler duct static pressure is high; this could lead to higher supply fan energy consumption and additional zone reheat (with auto-correction disabled).",
+        "24.1": "The air-handler duct static pressure is high, but duct static pressure set point data is not available (cannot autocorrect).",
+        "25.1": "The air-handler duct static pressure is high, while the supply fan is running at minimum speed.",
+        "30.0": "The air-hander supply-air temperature set point controls are operating correctly.",
+        "31.1": "The air-handler supply-air temperature set point controls is significantly different from the set point.",
+        "32.2": "The air-handler supply-air temperature set point data is not available; therefore, this diagnostic cannot be run for this period.",
+        "40.0": "The air-handler supply-air temperature is not low for this period.",
+        "41.1": "The air-handler supply-air temperature is low; this could result in zone over cooling or excess reheat (with auto-correction enabled).",
+        "42.1": "The air-hander supply-air temperature is low, while it is at the maximum set point value.",
+        "43.1": "The air-handler supply-air temperature is low; this could result in zone over cooling or excess reheat (with auto-correction disabled).",
+        "44.1": "The air-handler supply-air temperature is low, but supply-air temperature set point data is not available (cannot auto-correct).",
+        "50.0": "The air-handler supply-air temperature is not high for this period.",
+        "51.1": "The air-handler supply-air temperature is high; this could result in zone over heating (with auto-correction enabled).",
+        "52.1": "The air-hander supply-air temperature is high, while it is at the minimum set point value.",
+        "53.1": "The air-handler supply-air temperature is high; this could result in zone over heating (with auto-correction disabled).",
+        "54.1": "The air-handler supply-air temperature is high, but supply-air temperature set point data is not available (cannot auto-correct).",
+        "60.0": "No schedule problems is detected for this period.",
+        "61.2": "There is insufficient data; therefore, potential opportunity for operational improvements cannot be detected at this time.",
+        "63.1": "The system is ON for a significant amount of time during the unoccupied period",
+        "64.2": "The system status shows the unit is OFF but the static pressure reading is high.",
+        "70.0": "The air-handler static pressure is being reset for this time period.",
+        "71.1": "No air-handler static pressure reset is detected for this time period; this may result in excess energy consumption. Static pressure reset can save significant energy.",
+        "80.0": "The air-handler supply-air temperature is being reset for this time period.",
+        "81.1": "No air-handler supply-air temperature reset is detected for this time period; this may result in excess energy consumption. Supply-air temperature reset can save significant energy."
     };
 
     //Extensions & support functions
@@ -1225,10 +969,28 @@ $(function() {
                             var newItem = {};
                             var sensLvl = $("#sensitive").val();
                             var err_code = dx_msg[1][sensLvl]; //dx_msg[1].toString();
+                            err_code = err_code.toFixed(1);
+                            switch(err_code.substr(-2))
+                            {
+                                case ".0":
+                                    color_code = 'GREEN';
+                                    break;
+                                case ".1":
+                                    color_code = 'RED';
+                                    break;
+                                case ".2":
+                                    color_code = 'GREY';
+                                    break;
+                                case ".3":
+                                    color_code = 'WHITE';
+                                    break;
+                                default:
+                                    color_code = 'GREEN';
+                            }
                             newItem['diagnostic_name'] = algo;
                             newItem['datetime'] = dx_msg[0];
                             newItem['error_code'] = err_code;
-                            newItem['color_code'] = color_codes[dx][err_code];
+                            newItem['color_code'] = color_code;
                             newItem['diagnostic_message'] = error_messages[dx][err_code];
                             var ei_topic = [prefix,dx,site,building,device,algo,'energy impact'].join('/');
                             if (preCacheData.hasOwnProperty(ei_topic)) {
@@ -1239,7 +1001,7 @@ $(function() {
                                     dxParts = dx_msg[0].split(':');
                                     if (eiParts[0]===dxParts[0] && //up to hour
                                         eiParts[1]===dxParts[1]) { //minute
-                                        newItem['energy_impact'] = ei_msg[1];
+                                        newItem['energy_impact'] = ei_msg[1][sensLvl];
                                         break;
                                     }
                                 }
