@@ -2,13 +2,13 @@
     # true for on demand, false for polling
     "operation_mode": 2, #1: request only, 2: polling & request
 
-    "wu_api_key": "WeatherUndergroundAPIKey",
-    "zip": "37918", #zip has higher priority than city/region
-    "city": "Richland", #no need if zip is defined
-    "region": "WA", #no need if zip is defined
+    "wu_api_key": "",
+    "zip": "22212", #zip has higher priority than city/region
+    "city": "Incheon", #no need if zip is defined
+    "region": "KO", #no need if zip is defined
 
     # This section is used to make weather agent periodically publish current conditions
     # Set up poll_time to make sure the number of API calls to WU is less than your WU subscription daily limit
-    "poll_time": 900 #seconds
+    "poll_time": 20 #seconds
 
 }

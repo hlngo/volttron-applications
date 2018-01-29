@@ -141,6 +141,8 @@ class Weather2Agent(Agent):
                                               self.on_polling,
                                               wait=0)
 
+
+
     def on_request(self, peer, sender, bus, topic, headers, message):
         #
         # weather2/request/{feature}/{region}/{city}/all
@@ -310,6 +312,7 @@ class Weather2Agent(Agent):
                                     topic=topic,
                                     message=publish_items,
                                     headers=headers)
+            _log.debug(publish_items)
 
     def is_feature_supported(self, feature):
         if feature in self.supported_features:
