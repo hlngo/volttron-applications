@@ -66,6 +66,7 @@ from pandas.tseries.offsets import CustomBusinessDay, BDay
 from pandas.tseries.holiday import USFederalHolidayCalendar
 import pytz
 import numpy as np
+import csv
 
 from volttron.platform.vip.agent import Agent, Core, PubSub, RPC, compat
 from volttron.platform.agent import utils
@@ -105,6 +106,7 @@ class PGnEAgent(Agent):
         #Debug
         self.debug_folder = self.config.get('debug_folder') + '/'
         self.debug_folder = self.debug_folder.replace('//', '/')
+        self.wbe_csv = self.config.get('wbe_file')
 
         #
         self.bday_us = CustomBusinessDay(calendar=USFederalHolidayCalendar())
@@ -141,6 +143,55 @@ class PGnEAgent(Agent):
         event_end_local = event_end.astimezone(self.local_tz)
         return self.calculate_latest_baseline(
             cur_time_utc, event_start_local, event_end_local, exclude_days)
+        # return self.calculate_latest_baseline_wbe(
+        #     cur_time_utc, event_start_local, event_end_local, exclude_days)
+
+    def calculate_latest_baseline_wbe(self, cur_time_utc,
+                                  event_start_local, event_end_local,
+                                  exclude_days_utc):
+        cur_time_local = cur_time_utc.astimezone(self.local_tz)
+        baseline = []
+        with open(self.wbe_csv, 'rb') as csvfile:
+            reader = csv.reader(csvfile, delimiter=',')
+            for row in reader:
+                wbe_ts = parser.parse(row[0])
+                if wbe_ts.year == cur_time_local.year \
+                        and wbe_ts.month == cur_time_local.month \
+                        and wbe_ts.day == cur_time_local.day:
+                    baseline = row[1:]
+                    break
+
+        value = {}
+        meta2 = {'type': 'string', 'tz': 'UTC', 'units': ''}
+        for i in range(0,24):
+            ts = cur_time_local.replace(hour=i, minute=0, second=0)
+            value[ts_epoch] = baseline[i]
+        baseline_msg = [{
+            "value": value
+        }, {
+            "value": meta2
+        }]
+        headers = {'Date': format_timestamp(get_aware_utc_now())}
+        target_topic = '/'.join(['analysis', 'PGnE', self.site, self.building, 'baseline'])
+        self.vip.pubsub.publish(
+            'pubsub', target_topic, headers, baseline_msg).get(timeout=10)
+        _log.debug("PGnE {topic}: {value}".format(
+            topic=target_topic,
+            value=baseline_msg))
+
+        meta = {'type': 'float', 'tz': self.tz, 'units': 'kW'}
+        baseline_values = [{
+            "value_hr0": value_hr0,  # next hour
+            "value_hr1": value_hr1,  # next hour + 1
+            "value_hr2": value_hr2  # next hour + 2
+        }, {
+            "value_hr0": meta,
+            "value_hr1": meta,
+            "value_hr2": meta
+        }]
+
+        #15-min target
+        pass
 
     def calculate_latest_baseline(self, cur_time_utc,
                                   event_start_local, event_end_local,
@@ -387,8 +438,6 @@ class PGnEAgent(Agent):
         #Aug 7 test
         if self.manual_set_adj_value:
             dq['Adj'] = self.fix_adj_value
-
-
 
         dq['pow_adj_avg'] = dq['pow_avg'] * dq['Adj']
         self.save_4_debug(dq, 'data5a.csv')

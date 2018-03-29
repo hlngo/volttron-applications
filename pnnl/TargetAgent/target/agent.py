@@ -86,6 +86,7 @@ class TargetAgent(Agent):
         self.site = self.config.get('campus')
         self.building = self.config.get('building')
         self.wbe_csv = self.config.get('wbe_file')
+        self.prediction_method = self.config.get('prediction_method')
 
         # Local timezone
         self.tz = self.config.get('tz')
@@ -112,10 +113,14 @@ class TargetAgent(Agent):
 
         # DR mode
         self.dr_mode = self.config.get('dr_mode')
-        self.start_time = self.config.get('start_time')
-        self.end_time = self.config.get('end_time')
-        self.cur_time = self.config.get('cur_time')
-        if self.dr_mode != 'open_adr':
+        if self.dr_mode == 'open_adr':
+            self.start_time = None
+            self.end_time = None
+            self.cur_time = None
+        else:
+            self.start_time = self.config.get('start_time')
+            self.end_time = self.config.get('end_time')
+            self.cur_time = self.config.get('cur_time')
             try:
                 self.start_time = parser.parse(self.start_time)
                 self.end_time = parser.parse(self.end_time)
@@ -154,6 +159,17 @@ class TargetAgent(Agent):
             self.vip.pubsub.subscribe(peer='pubsub',
                                       prefix=manual_periodic,
                                       callback=self.simulation_publish_handler)
+        elif self.dr_mode == 'auto_adr':
+            adr_topic = '/'.join(['openadr', 'event_update'])
+            _log.debug("TargetAgent: OpenADR handler topic -- {}".format(adr_topic))
+            self.vip.pubsub.subscribe(peer='pubsub',
+                                      prefix=adr_topic,
+                                      callback=self.open_adr_handler)
+        adr_topic = '/'.join(['openadr', 'event'])
+        _log.debug("TargetAgent: OpenADR handler topic -- {}".format(adr_topic))
+        self.vip.pubsub.subscribe(peer='pubsub',
+                                  prefix=adr_topic,
+                                  callback=self.open_adr_handler)
 
         # Always put this line(s) at the end of the method
         self.publish_target_info(format_timestamp(cur_time_utc))
@@ -174,6 +190,23 @@ class TargetAgent(Agent):
             self.publish_target_info(format_timestamp(current_time))
             self.last_publish_time = current_time
 
+    def open_adr_handler(self, peer, sender, bus, topic, headers, message):
+        _log.debug("TARGET_AGENT_DEBUG: Running OpenADR publish handler")
+        self.start_time = parser.parse(message['start_time'])
+        self.end_time = parser.parse(message['end_time'])
+        current_time = datetime.utcnow()
+
+        # OpenADR uses UTC
+        if self.start_time.tzinfo is not None:
+            tz_replace = dateutil.tz.gettz('UTC')
+            self.start_time = self.start_time.replace(tzinfo=tz_replace)
+        if self.end_time.tzinfo is not None:
+            tz_replace = dateutil.tz.gettz('UTC')
+            self.end_time = self.end_time.replace(tzinfo=tz_replace)
+
+        _log.debug("TARGET_AGENT_DEBUG: publish target info.")
+        self.publish_target_info(format_timestamp(current_time))
+
     def on_ilc_start(self, peer, sender, bus, topic, headers, message):
         cur_time = self.local_tz.localize(datetime.now())
         cur_time_utc = cur_time.astimezone(pytz.utc)
@@ -182,7 +215,7 @@ class TargetAgent(Agent):
         self.publish_target_info(format_timestamp(prev_time_utc))
         self.publish_target_info(format_timestamp(cur_time_utc))
 
-    def get_dr_days(self):
+    def get_prev_dr_days(self):
         """
         Get DR days from historian previous published by OpenADR agent
         Returns:
@@ -209,19 +242,44 @@ class TargetAgent(Agent):
         Returns:
             A dictionary that has start & end time for event day
         """
-        # Get info from OpenADR, with timezone info
 
-        if self.dr_mode == 'openADR': #from OpenADR agent
-            start_time = self.local_tz.localize(datetime(2017, 5, 3, 13, 0, 0))
-            end_time = self.local_tz.localize(datetime(2017, 5, 3, 17, 0, 0))
+        import json
+
+        event_info = {}
+
+        # Get info from OpenADR, with timezone info
+        start_time = None
+        end_time = None
+
+        if self.dr_mode == 'open_adr': #from OpenADR agent
+            #start_time = self.local_tz.localize(datetime(2017, 5, 3, 13, 0, 0))
+            #end_time = self.local_tz.localize(datetime(2017, 5, 3, 17, 0, 0))
+            start_time = self.start_time
+            end_time = self.end_time
+            # RPC call to OpenADR VEN to get OpenADR info
+            if start_time is None or end_time is None:
+                try:
+                    events = self.vip.rpc.call(
+                        'openadr', 'get_events').get(timeout=60)
+                    for event in events:
+                        start_time = parser.parse(event['start_time'])
+                        end_time = parser.parse(event['end_time'])
+                        if start_time.tzinfo is None:
+                            tz_replace = dateutil.tz.gettz(self.tz)
+                            start_time = self.start_time.replace(tzinfo=tz_replace)
+                        if end_time.tzinfo is None:
+                            tz_replace = dateutil.tz.gettz(self.tz)
+                            end_time = self.end_time.replace(tzinfo=tz_replace)
+                except Exception as e:
+                    _log.debug("TargetAgentError: Cannot RPC call to OpenADR agent")
+                    _log.debug(e.message)
         else:
             start_time = self.local_tz.localize(self.start_time)
             end_time = self.local_tz.localize(self.end_time)
 
-        # for simulation
-        event_info = {}
-        event_info['start'] = start_time.astimezone(pytz.utc)
-        event_info['end'] = end_time.astimezone(pytz.utc)
+        if start_time is not None and end_time is not None:
+            event_info['start'] = start_time.astimezone(pytz.utc)
+            event_info['end'] = end_time.astimezone(pytz.utc)
 
         return event_info
 
@@ -233,14 +291,14 @@ class TargetAgent(Agent):
         """
         baseline_target = None
         message = []
-        dr_days = self.get_dr_days()
+        prev_dr_days = self.get_prev_dr_days()
         try:
             message = self.vip.rpc.call(
                 'baseline_agent', 'get_prediction',
                 format_timestamp(cur_time_utc),
                 format_timestamp(start_utc),
                 format_timestamp(end_utc),
-                'UTC', dr_days).get(timeout=60)
+                'UTC', prev_dr_days).get(timeout=60)
         except:
             _log.debug("TargetAgentError: Cannot RPC call to PGnE baseline agent")
 
@@ -265,7 +323,7 @@ class TargetAgent(Agent):
 
         return baseline_target
 
-    def get_target_info(self, in_time, in_tz):
+    def get_target_info_wbe(self, in_time, in_tz):
         """
         Combine event start, end, and baseline target
         Inputs:
@@ -298,7 +356,7 @@ class TargetAgent(Agent):
             end_utc_prev_hr = end_utc - one_hour
 
             # Use occupancy time if cont_after_dr is enabled
-            if self.cont_after_dr == 'yes':
+            if self.cont_after_dr == 'yes' and self.dr_mode != 'open_adr':
                 end_utc_prev_hr = self.occ_time_utc - one_hour
 
             if start_utc_prev_hr <= cur_time_utc < end_utc_prev_hr:
@@ -428,9 +486,10 @@ class TargetAgent(Agent):
             end_utc_prev_hr = end_utc - one_hour
 
             # Use occupancy time if cont_after_dr is enabled
-            if self.cont_after_dr == 'yes':
+            if self.cont_after_dr == 'yes' and self.dr_mode != 'open_adr':
                 end_utc_prev_hr = self.occ_time_utc - one_hour
 
+            # Progress only if current hour is in range of one hour before start_time and one hour before end_time
             if start_utc_prev_hr <= cur_time_utc < end_utc_prev_hr:
                 next_hour_utc = \
                     cur_time_utc.replace(minute=0, second=0, microsecond=0) + one_hour
@@ -498,9 +557,15 @@ class TargetAgent(Agent):
         return target_info
 
     def publish_target_info(self, cur_analysis_time_utc):
+        if self.prediction_method == 'pge':
+            self.publish_target_info_pgne(cur_analysis_time_utc)
+        elif self.prediction_method == 'wbe':
+            self.publish_target_info_wbe(cur_analysis_time_utc)
+
+    def publish_target_info_wbe(self, cur_analysis_time_utc):
         cur_analysis_time_utc = parser.parse(cur_analysis_time_utc)
         try:
-            target_messages = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
+            target_messages = self.get_target_info_wbe(format_timestamp(cur_analysis_time_utc), 'UTC')
             if len(target_messages) > 0:
 
                 target_topic = '/'.join(['analysis', 'target_agent', self.site, self.building, 'goal'])
@@ -535,7 +600,7 @@ class TargetAgent(Agent):
     def publish_target_info_pgne(self, cur_analysis_time_utc):
         cur_analysis_time_utc = parser.parse(cur_analysis_time_utc)
 
-        target_messages = self.get_target_info(format_timestamp(cur_analysis_time_utc), 'UTC')
+        target_messages = self.get_target_info_pgne(format_timestamp(cur_analysis_time_utc), 'UTC')
         if len(target_messages) > 0:
 
             target_topic = '/'.join(['analysis', 'target_agent', self.site, self.building, 'goal'])
@@ -572,6 +637,7 @@ def main(argv=sys.argv):
         utils.vip_main(TargetAgent)
     except Exception as e:
         _log.exception('unhandled exception ' + str(e))
+
 
 if __name__ == '__main__':
     # Entry point for script
